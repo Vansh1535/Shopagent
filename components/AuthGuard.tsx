@@ -108,8 +108,7 @@ export default function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
   }
 
   // 3. Role Restriction (Logged in, but role is not allowed)
-  // Note: 'admin' has universal access to all portals if needed, but if role is seller trying to access admin, block!
-  const isAuthorized = allowedRoles.includes(user.role) || user.role === 'admin';
+  const isAuthorized = allowedRoles.includes(user.role);
 
   if (!isAuthorized) {
     return (
@@ -128,32 +127,25 @@ export default function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
               Role Authorization Error
             </h2>
             <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
-              Logged in as <span className="text-white font-semibold">{user.email}</span> (<span className="text-[#e5c178] font-bold uppercase">{user.role}</span>).
+              Logged in as <span className="text-white font-semibold">{user.name}</span> ({user.email}) with role <span className="text-[#e5c178] font-bold uppercase">{user.role}</span>.
               <br />
-              This page requires <span className="text-white font-semibold uppercase">{allowedRoles.join(' or ')}</span> access privileges.
+              Seller and Buyer accounts are isolated. This workspace requires <span className="text-white font-semibold uppercase">{allowedRoles.join(' or ')}</span> access.
             </p>
           </div>
 
           {/* Action Buttons */}
           <div className="space-y-3 pt-2">
-            <button
-              onClick={() => switchRole(allowedRoles[0])}
-              className="btn-ivory w-full flex items-center justify-center gap-2 rounded-full py-3.5 text-xs font-bold shadow-xl cursor-pointer"
-            >
-              <span>Switch Role to {allowedRoles[0].toUpperCase()}</span>
-              <ArrowRight className="h-4 w-4" />
-            </button>
-
             <Link
               href={`/${user.role}`}
-              className="w-full block py-2.5 text-xs font-semibold text-zinc-300 hover:text-white transition-colors"
+              className="btn-ivory w-full flex items-center justify-center gap-2 rounded-full py-3.5 text-xs font-bold shadow-xl cursor-pointer"
             >
-              Go to Authorized Workspace (/{user.role})
+              <span>Return to My Authorized Workspace (/{user.role})</span>
+              <ArrowRight className="h-4 w-4" />
             </Link>
 
             <button
               onClick={logout}
-              className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-red-400 hover:text-red-300 transition-colors pt-2"
+              className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-red-400 hover:text-red-300 transition-colors pt-2 cursor-pointer"
             >
               <LogOut className="h-3.5 w-3.5" />
               <span>Log Out of {user.email}</span>

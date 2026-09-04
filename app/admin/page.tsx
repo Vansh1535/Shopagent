@@ -198,23 +198,7 @@ export default function PlatformAdminConsole() {
           </nav>
         </div>
 
-        <div className="border-t border-zinc-800/80 pt-4 space-y-2">
-          <div className="grid grid-cols-2 gap-1.5">
-            <Link
-              href="/seller"
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-zinc-950 p-2.5 text-[11px] font-semibold text-zinc-300 border border-zinc-800 hover:border-[#e5c178] hover:text-white transition-all"
-            >
-              <Building2 className="h-3.5 w-3.5 text-[#e5c178]" />
-              <span>Seller</span>
-            </Link>
-            <Link
-              href="/buyer"
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-zinc-950 p-2.5 text-[11px] font-semibold text-zinc-300 border border-zinc-800 hover:border-[#e5c178] hover:text-white transition-all"
-            >
-              <Bot className="h-3.5 w-3.5 text-[#e5c178]" />
-              <span>Buyer</span>
-            </Link>
-          </div>
+        <div className="border-t border-zinc-800/80 pt-4">
           <div className="text-[10px] text-center font-mono text-zinc-600 uppercase tracking-wider pt-1">
             RAZORPAY BUILDATHON • TRACK 01
           </div>

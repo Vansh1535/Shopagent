@@ -52,28 +52,6 @@ export default function DayNightLandingPage() {
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
-
-              {/* Bottom Metrics Bar */}
-              <div className="pt-10 border-t border-zinc-800/80 grid grid-cols-2 sm:grid-cols-4 gap-6 text-left">
-                <div>
-                  <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">EST.</div>
-                  <div className="text-base font-bold text-white mt-1">2026</div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">FOCUS</div>
-                  <div className="text-base font-bold text-white mt-1">Agentic Growth</div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">AVG. LIFT</div>
-                  <div className="text-base font-bold text-[#e5c178] mt-1">312% conversion</div>
-                </div>
-                <div>
-                  <a href="#operating-system" className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-300 hover:text-white pt-2">
-                    <span>See results</span>
-                    <ArrowDown className="h-3.5 w-3.5 text-[#e5c178]" />
-                  </a>
-                </div>
-              </div>
             </div>
 
             {/* Hero Right 3D Particle Orb */}

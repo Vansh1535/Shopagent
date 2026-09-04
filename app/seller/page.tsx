@@ -293,7 +293,7 @@ export default function SellerAdminDashboard() {
   const aiReadyProducts = products.filter((p) => p.is_ai_ready).length;
 
   return (
-    <AuthGuard allowedRoles={['seller', 'admin']}>
+    <AuthGuard allowedRoles={['seller']}>
       <div className="min-h-screen bg-pitch-black text-zinc-100 flex flex-col font-sans">
         <Navbar />
         <div className="flex flex-1 h-[calc(100vh-61px)] overflow-hidden">
@@ -349,16 +349,9 @@ export default function SellerAdminDashboard() {
           </nav>
         </div>
 
-        <div className="border-t border-zinc-800/80 pt-4 space-y-3">
-          <Link
-            href="/buyer"
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0e0e14] px-3.5 py-2.5 text-xs font-semibold text-zinc-300 border border-zinc-800 hover:border-[#e5c178] hover:text-white transition-all"
-          >
-            <Bot className="h-4 w-4 text-[#e5c178]" />
-            <span>Buyer AI Workspace</span>
-          </Link>
+        <div className="border-t border-zinc-800/80 pt-4">
           <div className="text-[10px] text-center font-mono text-zinc-600 uppercase tracking-wider">
-            RAZORPAY TEST API • SUPABASE
+            RAZORPAY TEST API • AGENT READY
           </div>
         </div>
       </aside>

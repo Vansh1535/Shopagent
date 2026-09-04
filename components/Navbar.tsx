@@ -10,12 +10,12 @@ import {
   ShieldCheck,
   LogOut,
   ArrowRight,
-  User,
-  ChevronDown
+  ChevronDown,
+  ExternalLink
 } from 'lucide-react';
 
 export default function Navbar() {
-  const { user, logout, setIsAuthModalOpen, switchRole } = useAuth();
+  const { user, logout, setIsAuthModalOpen } = useAuth();
   const pathname = usePathname();
   const [timeGmt, setTimeGmt] = useState<string>('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -41,45 +41,6 @@ export default function Navbar() {
               ShopAgent <span className="text-zinc-500 font-normal">Studio</span>
             </span>
           </Link>
-
-          {/* Navigation Links based on role */}
-          <nav className="hidden md:flex items-center gap-1 bg-zinc-950 border border-zinc-800/80 rounded-full p-1 text-xs">
-            <Link
-              href="/seller"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold transition-all ${
-                pathname === '/seller'
-                  ? 'bg-zinc-900 text-[#e5c178] border border-[#e5c178]/30'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <Building2 className="h-3.5 w-3.5" />
-              <span>Merchant</span>
-            </Link>
-
-            <Link
-              href="/buyer"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold transition-all ${
-                pathname === '/buyer'
-                  ? 'bg-zinc-900 text-[#e5c178] border border-[#e5c178]/30'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <Bot className="h-3.5 w-3.5" />
-              <span>Buyer AI</span>
-            </Link>
-
-            <Link
-              href="/admin"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold transition-all ${
-                pathname === '/admin'
-                  ? 'bg-zinc-900 text-[#e5c178] border border-[#e5c178]/30'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <ShieldCheck className="h-3.5 w-3.5 text-[#e5c178]" />
-              <span>Admin</span>
-            </Link>
-          </nav>
         </div>
 
         {/* Right Section: Auth User Controls & Clock */}
@@ -111,59 +72,30 @@ export default function Navbar() {
                     <p className="text-xs font-bold text-white">{user.name}</p>
                     <p className="text-[10px] font-mono text-zinc-500 truncate">{user.email}</p>
                     <div className="mt-1.5 inline-block rounded-md bg-zinc-900 border border-zinc-800 px-2 py-0.5 text-[9px] font-mono text-zinc-400">
-                      Logged in at {new Date(user.loggedInAt).toLocaleTimeString()}
+                      Session Active • {user.role.toUpperCase()}
                     </div>
                   </div>
 
-                  {/* Switch Role Quick Shortcuts */}
+                  {/* Link to Current User's Authorized Workspace */}
                   <div className="space-y-1">
                     <p className="px-3 text-[9px] font-mono font-bold text-zinc-500 uppercase">
-                      Switch Role
+                      My Workspace
                     </p>
-                    <button
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        switchRole('seller');
-                      }}
-                      className={`w-full flex items-center justify-between rounded-xl px-3 py-1.5 text-xs font-medium transition-colors ${
-                        user.role === 'seller' ? 'bg-zinc-900 text-[#e5c178]' : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
-                      }`}
+                    <Link
+                      href={`/${user.role}`}
+                      onClick={() => setUserMenuOpen(false)}
+                      className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-[#e5c178] bg-zinc-900/60 border border-[#e5c178]/20 hover:bg-zinc-900 transition-colors"
                     >
                       <span className="flex items-center gap-2">
-                        <Building2 className="h-3.5 w-3.5" /> Merchant
+                        {user.role === 'seller' && <Building2 className="h-3.5 w-3.5" />}
+                        {user.role === 'buyer' && <Bot className="h-3.5 w-3.5" />}
+                        {user.role === 'admin' && <ShieldCheck className="h-3.5 w-3.5" />}
+                        <span>
+                          {user.role === 'seller' ? 'Merchant Portal' : user.role === 'buyer' ? 'Buyer Assistant' : 'Admin Console'}
+                        </span>
                       </span>
-                      {user.role === 'seller' && <span className="text-[10px]">Active</span>}
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        switchRole('buyer');
-                      }}
-                      className={`w-full flex items-center justify-between rounded-xl px-3 py-1.5 text-xs font-medium transition-colors ${
-                        user.role === 'buyer' ? 'bg-zinc-900 text-[#e5c178]' : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <Bot className="h-3.5 w-3.5" /> Consumer AI
-                      </span>
-                      {user.role === 'buyer' && <span className="text-[10px]">Active</span>}
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        switchRole('admin');
-                      }}
-                      className={`w-full flex items-center justify-between rounded-xl px-3 py-1.5 text-xs font-medium transition-colors ${
-                        user.role === 'admin' ? 'bg-zinc-900 text-[#e5c178]' : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <ShieldCheck className="h-3.5 w-3.5 text-[#e5c178]" /> Admin Console
-                      </span>
-                      {user.role === 'admin' && <span className="text-[10px]">Active</span>}
-                    </button>
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
                   </div>
 
                   {/* Log Out Action */}
@@ -173,7 +105,7 @@ export default function Navbar() {
                         setUserMenuOpen(false);
                         logout();
                       }}
-                      className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
+                      className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors cursor-pointer"
                     >
                       <LogOut className="h-3.5 w-3.5" />
                       <span>Log Out</span>
