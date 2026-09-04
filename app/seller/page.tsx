@@ -303,8 +303,8 @@ export default function SellerAdminDashboard() {
           <Link href="/" className="flex items-center gap-2.5 px-1">
             <span className="h-2.5 w-2.5 rounded-full bg-[#e5c178] shadow-[0_0_10px_#e5c178]" />
             <div>
-              <div className="text-sm font-bold text-white tracking-tight">ApexTech Merchant</div>
-              <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Studio Admin</div>
+              <div className="text-sm font-bold text-white tracking-tight">ShopAgent Merchant</div>
+              <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Merchant Workspace</div>
             </div>
           </Link>
 
@@ -335,17 +335,6 @@ export default function SellerAdminDashboard() {
               <ShieldCheck className="h-4 w-4" />
               <span>Commerce Governance</span>
             </button>
-
-            <Link
-              href="/admin"
-              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-200 transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <FileText className="h-4 w-4 text-[#e5c178]" />
-                <span>Money Audit Trail</span>
-              </div>
-              <span className="font-mono text-[9px] text-[#e5c178] border border-[#e5c178]/30 px-1.5 py-0.5 rounded">ADMIN</span>
-            </Link>
           </nav>
         </div>
 
@@ -362,13 +351,11 @@ export default function SellerAdminDashboard() {
         <header className="sticky top-0 z-10 border-b border-zinc-800/60 bg-[#050507]/90 backdrop-blur-md px-8 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight">
-              {activeTab === 'overview' && <span>Overview Analytics & <span className="serif-gold text-2xl font-normal">Revenue</span></span>}
               {activeTab === 'catalog' && <span>Product Catalog & <span className="serif-gold text-2xl font-normal">AI Readiness</span></span>}
               {activeTab === 'policy' && <span>Commerce Governance & <span className="serif-gold text-2xl font-normal">Policy Engine</span></span>}
-              {activeTab === 'audit' && <span>Money Action <span className="serif-gold text-2xl font-normal">Audit Logs</span></span>}
             </h1>
             <p className="text-xs text-zinc-400">
-              Manage your merchant catalog, policy boundaries, and explainable AI money logs.
+              Manage your merchant catalog, pricing, stock, and agentic commerce governance policy boundaries.
             </p>
           </div>
 
