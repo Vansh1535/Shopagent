@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+}
+
+:root {
+  color-scheme: dark;
+  --background: #050507;
+  --foreground: #f4f4f5;
+}
+
+body {
+  background-color: #050507;
+  color: #f4f4f5;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom DayNight Serif Highlight Class */
+.serif-gold {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  color: #e5c178;
+}
+
+.bg-pitch-black {
+  background-color: #050507;
+}
+
+/* Ivory / Cream Button */
+.btn-ivory {
+  background-color: #f5f0e6;
+  color: #0d0d0f;
+  transition: all 0.2s ease;
+}
+
+.btn-ivory:hover {
+  background-color: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* Glass panel */
+.glass-panel-dark {
+  background: rgba(12, 12, 16, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@keyframes mic-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(229, 193, 120, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(229, 193, 120, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(229, 193, 120, 0);
+  }
+}
+
+.animate-mic-pulse {
+  animation: mic-pulse 1.5s infinite;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(229, 193, 120, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(229, 193, 120, 0.4);
+}
