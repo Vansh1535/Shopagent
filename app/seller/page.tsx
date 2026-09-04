@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
 import Navbar from '@/components/Navbar';
+import CustomAlertModal, { AlertState } from '@/components/CustomAlertModal';
 import { Product, AgentProduct, CommercePolicy, AgentAction, Order } from '@/lib/types';
 import { DEMO_COMMERCE_POLICY, INITIAL_AGENT_PRODUCTS } from '@/lib/seed';
 
@@ -47,6 +48,8 @@ export default function SellerAdminDashboard() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCsvModal, setShowCsvModal] = useState(false);
   const [copiedState, setCopiedState] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [customAlert, setCustomAlert] = useState<AlertState | null>(null);
   const [csvNotice, setCsvNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -138,20 +141,52 @@ export default function SellerAdminDashboard() {
     }
   };
 
+  const handleToggleSelectProduct = (id: string) => {
+    setSelectedProductIds((prev) =>
+      prev.includes(id) ? prev.filter((pId) => pId !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedProductIds.length === products.length) {
+      setSelectedProductIds([]);
+    } else {
+      setSelectedProductIds(products.map((p) => p.id));
+    }
+  };
+
+  const handleSelectUnreadyOnly = () => {
+    const unreadyIds = products.filter((p) => !p.is_ai_ready).map((p) => p.id);
+    setSelectedProductIds(unreadyIds);
+  };
+
   const handleBatchMakeAiReady = async () => {
-    const unready = products.filter((p) => !p.is_ai_ready);
-    if (unready.length === 0) {
-      alert('All products in your catalog are already AI-Ready!');
+    // If specific products are checked, normalize selected. Otherwise normalize unready items.
+    const targetProducts =
+      selectedProductIds.length > 0
+        ? products.filter((p) => selectedProductIds.includes(p.id))
+        : products.filter((p) => !p.is_ai_ready);
+
+    if (targetProducts.length === 0) {
+      setCustomAlert({
+        isOpen: true,
+        title: 'Product Selection Required',
+        message: 'No products selected to normalize! Check product checkboxes to select items.',
+        type: 'warning',
+      });
       return;
     }
 
     setIsBatchNormalizing(true);
-    for (const prod of unready) {
+    let count = 0;
+    for (const prod of targetProducts) {
       await handleMakeAiReady(prod);
+      count++;
     }
     setIsBatchNormalizing(false);
-    setCsvNotice(`Successfully normalized ${unready.length} products into agent-ready catalog!`);
-    setTimeout(() => setCsvNotice(null), 4000);
+    setSelectedProductIds([]);
+    setCsvNotice(`Successfully AI-normalized ${count} products into agent-ready catalog!`);
+    setTimeout(() => setCsvNotice(null), 5000);
   };
 
   const handleCsvFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,7 +200,12 @@ export default function SellerAdminDashboard() {
 
       const lines = csvText.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
       if (lines.length < 2) {
-        alert('CSV file must contain a header row and at least 1 data row.');
+        setCustomAlert({
+          isOpen: true,
+          title: 'Invalid CSV Format',
+          message: 'CSV file must contain a header row and at least 1 data row.',
+          type: 'error',
+        });
         return;
       }
 
@@ -299,15 +339,7 @@ export default function SellerAdminDashboard() {
         <div className="flex flex-1 h-[calc(100vh-61px)] overflow-hidden">
           {/* Sidebar Admin Navigation */}
       <aside className="w-64 border-r border-zinc-800/60 bg-[#07070a] flex flex-col justify-between p-5 shrink-0">
-        <div className="space-y-8">
-          <Link href="/" className="flex items-center gap-2.5 px-1">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#e5c178] shadow-[0_0_10px_#e5c178]" />
-            <div>
-              <div className="text-sm font-bold text-white tracking-tight">ShopAgent Merchant</div>
-              <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Merchant Workspace</div>
-            </div>
-          </Link>
-
+        <div className="space-y-6">
           <nav className="space-y-1.5">
             <button
               onClick={() => {
@@ -496,11 +528,40 @@ export default function SellerAdminDashboard() {
 
                     <button
                       onClick={handleBatchMakeAiReady}
-                      disabled={isBatchNormalizing || aiReadyProducts === totalProducts}
-                      className="rounded-xl bg-zinc-900 border border-[#e5c178]/40 px-3.5 py-1.5 text-xs font-semibold text-[#e5c178] hover:bg-[#e5c178] hover:text-black transition-all disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer"
+                      disabled={isBatchNormalizing}
+                      className="btn-ivory rounded-xl px-4 py-1.5 text-xs font-bold shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
                     >
                       <Zap className="h-3.5 w-3.5" />
-                      <span>{isBatchNormalizing ? 'Batch Normalizing...' : 'Batch Make AI Ready'}</span>
+                      <span>
+                        {isBatchNormalizing
+                          ? 'Normalizing...'
+                          : selectedProductIds.length > 0
+                          ? `Make AI Ready (${selectedProductIds.length})`
+                          : 'Make AI Ready'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Batch Selection Action Bar */}
+                <div className="bg-[#050507] border-b border-zinc-800 px-6 py-2.5 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-4">
+                    <span className="font-mono text-[11px] text-zinc-400">
+                      Selected: <strong className="text-white font-bold">{selectedProductIds.length}</strong> of {products.length} items
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleToggleSelectAll}
+                      className="text-[11px] font-semibold text-[#e5c178] hover:underline cursor-pointer"
+                    >
+                      {selectedProductIds.length === products.length && products.length > 0 ? 'Deselect All' : 'Select All'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSelectUnreadyOnly}
+                      className="text-[11px] font-semibold text-amber-400 hover:underline cursor-pointer"
+                    >
+                      Select Raw Items Only
                     </button>
                   </div>
                 </div>
@@ -509,6 +570,15 @@ export default function SellerAdminDashboard() {
                   <table className="w-full text-left text-xs text-zinc-300">
                     <thead className="bg-[#050507] text-zinc-400 uppercase font-mono text-[10px] tracking-wider border-b border-zinc-800">
                       <tr>
+                        <th className="px-4 py-3.5 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedProductIds.length === products.length && products.length > 0}
+                            onChange={handleToggleSelectAll}
+                            title="Select / Deselect All Products"
+                            className="accent-[#e5c178] h-4 w-4 rounded cursor-pointer"
+                          />
+                        </th>
                         <th className="px-6 py-3.5">Product Name</th>
                         <th className="px-6 py-3.5">Category</th>
                         <th className="px-6 py-3.5">Price</th>
@@ -520,7 +590,7 @@ export default function SellerAdminDashboard() {
                     <tbody className="divide-y divide-zinc-800/60">
                       {products.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="text-center py-12">
+                          <td colSpan={7} className="text-center py-12">
                             <div className="space-y-3 font-mono text-xs text-zinc-400">
                               <div>No products in merchant catalog.</div>
                               <div className="flex items-center justify-center gap-3 pt-1">
@@ -544,7 +614,15 @@ export default function SellerAdminDashboard() {
                         </tr>
                       ) : (
                         products.map((prod) => (
-                          <tr key={prod.id} className="hover:bg-zinc-800/30 transition-colors">
+                          <tr key={prod.id} className={`transition-colors ${selectedProductIds.includes(prod.id) ? 'bg-[#e5c178]/5' : 'hover:bg-zinc-800/30'}`}>
+                            <td className="px-4 py-4 text-center">
+                              <input
+                                type="checkbox"
+                                checked={selectedProductIds.includes(prod.id)}
+                                onChange={() => handleToggleSelectProduct(prod.id)}
+                                className="accent-[#e5c178] h-4 w-4 rounded cursor-pointer"
+                              />
+                            </td>
                             <td className="px-6 py-4 font-medium text-white max-w-xs truncate">{prod.name}</td>
                             <td className="px-6 py-4 capitalize text-zinc-400">{prod.category}</td>
                             <td className="px-6 py-4 font-bold text-[#e5c178]">₹{prod.price.toLocaleString('en-IN')}</td>
@@ -680,7 +758,7 @@ export default function SellerAdminDashboard() {
                   <p className="text-xs text-zinc-400">Live immutable stream of all AI buyer actions, policy gates, and payment events.</p>
                 </div>
                 <button
-                  onClick={fetchAuditLogs}
+                  onClick={fetchAllData}
                   className="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all"
                 >
                   <RefreshCw className="h-3.5 w-3.5 text-[#e5c178]" />
@@ -913,6 +991,8 @@ export default function SellerAdminDashboard() {
       )}
         </div>
       </div>
+
+      <CustomAlertModal alert={customAlert} onClose={() => setCustomAlert(null)} />
     </AuthGuard>
   );
 }

@@ -38,7 +38,7 @@ export default function Navbar() {
           <Link href="/" className="flex items-center gap-2.5 group">
             <span className="h-2.5 w-2.5 rounded-full bg-[#e5c178] shadow-[0_0_10px_#e5c178] group-hover:scale-125 transition-transform" />
             <span className="text-base font-bold tracking-tight text-white">
-              ShopAgent <span className="text-zinc-500 font-normal">Studio</span>
+              ShopAgent
             </span>
           </Link>
         </div>
@@ -46,21 +46,56 @@ export default function Navbar() {
         {/* Right Section: Auth User Controls & Clock */}
         <div className="flex items-center gap-4">
           {user ? (
-            /* Logged In User Pill with Menu */
-            <div className="relative">
-              <button
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2.5 rounded-full border border-zinc-800 bg-zinc-950 px-3.5 py-1.5 text-xs text-zinc-200 hover:border-[#e5c178]/40 transition-all cursor-pointer"
-              >
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="font-semibold text-white max-w-[120px] sm:max-w-[180px] truncate">
-                  {user.name}
-                </span>
-                <span className="rounded-full bg-[#e5c178]/10 border border-[#e5c178]/30 px-2 py-0.5 text-[10px] font-mono font-bold text-[#e5c178] uppercase">
-                  {user.role}
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />
-              </button>
+            <div className="flex items-center gap-3">
+              {/* Direct Role Workspace Link Button */}
+              {user.role === 'seller' && pathname !== '/seller' && (
+                <Link
+                  href="/seller"
+                  className="btn-ivory rounded-full px-4 py-1.5 text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span>Merchant Dashboard</span>
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              )}
+
+              {user.role === 'buyer' && pathname !== '/buyer' && (
+                <Link
+                  href="/buyer"
+                  className="btn-ivory rounded-full px-4 py-1.5 text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <Bot className="h-3.5 w-3.5" />
+                  <span>AI Shopping Chat</span>
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              )}
+
+              {user.role === 'admin' && pathname !== '/admin' && (
+                <Link
+                  href="/admin"
+                  className="btn-ivory rounded-full px-4 py-1.5 text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 text-amber-900" />
+                  <span>Admin Console</span>
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              )}
+
+              {/* Logged In User Pill with Menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2.5 rounded-full border border-zinc-800 bg-zinc-950 px-3.5 py-1.5 text-xs text-zinc-200 hover:border-[#e5c178]/40 transition-all cursor-pointer"
+                >
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="font-semibold text-white max-w-[120px] sm:max-w-[180px] truncate">
+                    {user.name}
+                  </span>
+                  <span className="rounded-full bg-[#e5c178]/10 border border-[#e5c178]/30 px-2 py-0.5 text-[10px] font-mono font-bold text-[#e5c178] uppercase">
+                    {user.role}
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />
+                </button>
 
               {/* User Menu Dropdown */}
               {userMenuOpen && (
@@ -76,30 +111,8 @@ export default function Navbar() {
                     </div>
                   </div>
 
-                  {/* Link to Current User's Authorized Workspace */}
-                  <div className="space-y-1">
-                    <p className="px-3 text-[9px] font-mono font-bold text-zinc-500 uppercase">
-                      My Workspace
-                    </p>
-                    <Link
-                      href={`/${user.role}`}
-                      onClick={() => setUserMenuOpen(false)}
-                      className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-[#e5c178] bg-zinc-900/60 border border-[#e5c178]/20 hover:bg-zinc-900 transition-colors"
-                    >
-                      <span className="flex items-center gap-2">
-                        {user.role === 'seller' && <Building2 className="h-3.5 w-3.5" />}
-                        {user.role === 'buyer' && <Bot className="h-3.5 w-3.5" />}
-                        {user.role === 'admin' && <ShieldCheck className="h-3.5 w-3.5" />}
-                        <span>
-                          {user.role === 'seller' ? 'Merchant Portal' : user.role === 'buyer' ? 'Buyer Assistant' : 'Admin Console'}
-                        </span>
-                      </span>
-                      <ExternalLink className="h-3 w-3" />
-                    </Link>
-                  </div>
-
                   {/* Log Out Action */}
-                  <div className="border-t border-zinc-800/80 pt-1">
+                  <div className="border-t border-zinc-800/80 pt-2">
                     <button
                       onClick={() => {
                         setUserMenuOpen(false);
@@ -114,6 +127,7 @@ export default function Navbar() {
                 </div>
               )}
             </div>
+          </div>
           ) : (
             /* Logged Out: Sign In / Sign Up Button */
             <button

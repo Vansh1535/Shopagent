@@ -12,6 +12,7 @@ export interface Product {
   description: string;
   category: string;
   price: number;
+  original_price?: number;
   currency: string;
   stock: number;
   image_url: string;
@@ -150,6 +151,7 @@ export interface ChatMessage {
     requires_confirmation?: boolean;
     pending_checkout?: boolean;
     failure_type?: 'OUT_OF_STOCK' | 'PRICE_CHANGED' | 'PAYMENT_FAILED';
+    is_comparison?: boolean;
     razorpay_order_id?: string;
     amount?: number;
   };

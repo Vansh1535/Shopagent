@@ -31,6 +31,112 @@ export async function processBuyerMessage(
 
   const allProducts = await db.getProducts();
 
+  // Extract last recommended products from chat history for multi-turn conversational context
+  let lastRecs: Product[] = [];
+  for (let i = currentHistory.length - 1; i >= 0; i--) {
+    const recs = currentHistory[i].metadata?.recommended_products;
+    if (recs && recs.length > 0) {
+      lastRecs = recs;
+      break;
+    }
+  }
+
+  // Detect Contextual Follow-Up Queries ("sasta wala konsa he", "kala kaun sa hai", "cheapest of these", "black color one")
+  const isCheapestFollowUp =
+    queryLower.includes('sasta') ||
+    queryLower.includes('cheapest') ||
+    queryLower.includes('cheaper') ||
+    queryLower.includes('low price') ||
+    queryLower.includes('kam daam');
+
+  const isColorFollowUp =
+    queryLower.includes('kala') ||
+    queryLower.includes('black') ||
+    queryLower.includes('white') ||
+    queryLower.includes('safed') ||
+    queryLower.includes('color') ||
+    queryLower.includes('rang');
+
+  // Handle Contextual Cheapest Follow-Up on Previous Results
+  if (isCheapestFollowUp && lastRecs.length > 0) {
+    const sortedByPrice = [...lastRecs].sort((a, b) => a.price - b.price);
+    const cheapestProduct = sortedByPrice[0];
+
+    await db.logAgentAction({
+      action_type: 'RECOMMENDATION',
+      input: { context_query: userQuery, cheapest: cheapestProduct.name },
+      status: 'SUCCESS',
+      reason: 'Resolved contextual cheapest query from previous recommended items',
+    });
+
+    const isHinglish =
+      /[\u0900-\u097F]/.test(userQuery) ||
+      queryLower.includes('sasta') ||
+      queryLower.includes('konsa') ||
+      queryLower.includes('kaun sa') ||
+      queryLower.includes('hai');
+
+    const content = isHinglish
+      ? `Aapke pichhle dikhaye gaye options me se **${cheapestProduct.name}** sabse sasta hai for **₹${cheapestProduct.price.toLocaleString('en-IN')}**!\n\n` +
+        `• **Price**: ₹${cheapestProduct.price.toLocaleString('en-IN')}\n` +
+        `• **Key Specs**: ${cheapestProduct.features.slice(0, 3).join(' • ')}\n` +
+        `• **Stock Status**: ${cheapestProduct.stock} units available\n\n` +
+        `Kya aap isse buy karna chahte hain ya Razorpay checkout launch karein?`
+      : `Out of the previously shown options, **${cheapestProduct.name}** is the most affordable at **₹${cheapestProduct.price.toLocaleString('en-IN')}**!\n\n` +
+        `• **Price**: ₹${cheapestProduct.price.toLocaleString('en-IN')}\n` +
+        `• **Key Specs**: ${cheapestProduct.features.slice(0, 3).join(' • ')}\n` +
+        `• **Stock**: ${cheapestProduct.stock} units available\n\n` +
+        `Would you like to proceed with purchasing this item?`;
+
+    const msg = await db.addMessage({
+      role: 'assistant',
+      content,
+      metadata: {
+        recommended_products: sortedByPrice,
+        action_type: 'RECOMMENDATION',
+      },
+    });
+
+    return { message: msg, recommendedProducts: sortedByPrice };
+  }
+
+  // Handle Contextual Color / Spec Follow-Up on Previous Results
+  if (isColorFollowUp && lastRecs.length > 0) {
+    const colorTerm = (queryLower.includes('kala') || queryLower.includes('black')) ? 'black' : 'white';
+    const matchedColor = lastRecs.filter((p) => {
+      const text = (p.name + ' ' + p.description + ' ' + p.features.join(' ')).toLowerCase();
+      return text.includes(colorTerm);
+    });
+
+    if (matchedColor.length > 0) {
+      const topColorProduct = matchedColor[0];
+
+      await db.logAgentAction({
+        action_type: 'RECOMMENDATION',
+        input: { context_query: userQuery, color_match: topColorProduct.name },
+        status: 'SUCCESS',
+        reason: 'Resolved contextual color query from previous recommended items',
+      });
+
+      const content = `Pichhle options me se **${topColorProduct.name}** (${colorTerm.toUpperCase()} color) me available hai for **₹${topColorProduct.price.toLocaleString('en-IN')}**!\n\n` +
+        `• **Price**: ₹${topColorProduct.price.toLocaleString('en-IN')}\n` +
+        `• **Features**: ${topColorProduct.features.join(' • ')}\n` +
+        `• **Stock**: ${topColorProduct.stock} units in inventory\n\n` +
+        `Kya aap isse cart me add karke buy karna chahte hain?`;
+
+      const msg = await db.addMessage({
+        role: 'assistant',
+        content,
+        metadata: {
+          recommended_products: matchedColor,
+          action_type: 'RECOMMENDATION',
+        },
+      });
+
+      return { message: msg, recommendedProducts: matchedColor };
+    }
+  }
+
   // 2. Perform Intelligent Multilingual Catalog Search (Groq / Gemini / Fallback)
   let searchResults: Product[] = [];
   try {
@@ -38,6 +144,17 @@ export async function processBuyerMessage(
   } catch (e) {
     console.warn('AI catalog search fallback:', e);
     searchResults = searchProductsCatalogFallback(userQuery, allProducts);
+  }
+
+  // Handle Contextual Pronouns / Ordinals in Multi-turn History ("first one", "pehla wala", "second one", "this one", "ye wala")
+  if (searchResults.length === 0 || queryLower.includes('first') || queryLower.includes('pehla') || queryLower.includes('second') || queryLower.includes('dusra') || queryLower.includes('this one')) {
+    if (lastRecs.length > 0) {
+      if (queryLower.includes('second') || queryLower.includes('dusra')) {
+        if (lastRecs[1]) searchResults = [lastRecs[1], ...lastRecs];
+      } else if (queryLower.includes('first') || queryLower.includes('pehla') || queryLower.includes('this one') || queryLower.includes('ye wala')) {
+        searchResults = [lastRecs[0], ...lastRecs];
+      }
+    }
   }
 
   // Log Search Action
@@ -49,7 +166,66 @@ export async function processBuyerMessage(
     reason: `Found ${searchResults.length} matching products from authoritative catalog`,
   });
 
-  // 3. Detect Buy / Add to Cart Intent
+  // 3. Detect Comparison Intent ("compare", "vs", "fark", "difference", "dono me", "better")
+  const isCompareIntent =
+    queryLower.includes('compare') ||
+    queryLower.includes('versus') ||
+    queryLower.includes(' vs ') ||
+    queryLower.includes(' vs') ||
+    queryLower.includes('fark') ||
+    queryLower.includes('difference') ||
+    queryLower.includes('dono me') ||
+    queryLower.includes('kaun sa achha') ||
+    queryLower.includes('which is better') ||
+    queryLower.includes('अन्तर') ||
+    queryLower.includes('तुलना');
+
+  if (isCompareIntent) {
+    let compareProducts: Product[] = searchResults;
+
+    if (compareProducts.length < 2 && currentHistory.length > 0) {
+      for (let i = currentHistory.length - 1; i >= 0; i--) {
+        const histRecs = currentHistory[i].metadata?.recommended_products;
+        if (histRecs && histRecs.length >= 2) {
+          compareProducts = histRecs.slice(0, 3);
+          break;
+        }
+      }
+    }
+
+    if (compareProducts.length >= 2) {
+      const p1 = compareProducts[0];
+      const p2 = compareProducts[1];
+
+      await db.logAgentAction({
+        action_type: 'RECOMMENDATION',
+        input: { comparison: [p1.name, p2.name] },
+        status: 'SUCCESS',
+        reason: 'Generated side-by-side product comparison matrix',
+      });
+
+      const compareContent = `Here is a side-by-side comparison between **${p1.name}** and **${p2.name}**:\n\n` +
+        `• **Price Comparison**: ₹${p1.price.toLocaleString('en-IN')} vs ₹${p2.price.toLocaleString('en-IN')}\n` +
+        `• **Key Advantage (${p1.name.split(' ')[0]})**: ${p1.features[0] || 'High performance'}\n` +
+        `• **Key Advantage (${p2.name.split(' ')[0]})**: ${p2.features[0] || 'Great value'}\n` +
+        `• **Stock Status**: ${p1.stock > 0 ? `${p1.stock} units available` : 'Out of stock'} vs ${p2.stock > 0 ? `${p2.stock} units available` : 'Out of stock'}\n\n` +
+        `💡 **Recommendation**: If budget is your main priority, **${p1.price <= p2.price ? p1.name : p2.name}** offers maximum savings!`;
+
+      const msg = await db.addMessage({
+        role: 'assistant',
+        content: compareContent,
+        metadata: {
+          recommended_products: compareProducts.slice(0, 3),
+          is_comparison: true,
+          action_type: 'RECOMMENDATION',
+        },
+      });
+
+      return { message: msg, recommendedProducts: compareProducts.slice(0, 3) };
+    }
+  }
+
+  // 4. Detect Conversational Buy / Add to Cart Intent
   const isBuyIntent =
     queryLower.includes('buy') ||
     queryLower.includes('le lo') ||
@@ -57,16 +233,20 @@ export async function processBuyerMessage(
     queryLower.includes('kharid') ||
     queryLower.includes('add to cart') ||
     queryLower.includes('order') ||
+    queryLower.includes('checkout') ||
+    queryLower.includes('purchase') ||
+    queryLower.includes('place order') ||
+    queryLower.includes('pay now') ||
     queryLower.includes('खरीद') ||
     queryLower.includes('ले लो');
 
   if (isBuyIntent && searchResults.length > 0) {
     const targetProduct = searchResults[0];
 
-    // Handle Simulated Failure 1: Out of Stock
-    if (simulatedFailure === 'OUT_OF_STOCK' || targetProduct.stock === 0) {
+    // Handle Natural Scenario 1: Out of Stock
+    if (targetProduct.stock === 0 || simulatedFailure === 'OUT_OF_STOCK') {
       const alternatives = allProducts.filter(
-        (p) => p.id !== targetProduct.id && p.stock > 0 && p.category === targetProduct.category
+        (p) => p.id !== targetProduct.id && p.stock > 0 && (p.category === targetProduct.category || p.price <= targetProduct.price + 2000)
       );
 
       await db.logAgentAction({
@@ -101,10 +281,11 @@ export async function processBuyerMessage(
       return { message: msg, recommendedProducts: alternatives.slice(0, 2) };
     }
 
-    // Handle Simulated Failure 2: Price Changed
-    if (simulatedFailure === 'PRICE_CHANGED') {
-      const oldPrice = targetProduct.price;
-      const updatedPrice = oldPrice + 300;
+    // Handle Natural Scenario 2: Price Changed Alert
+    const hasPriceChanged = targetProduct.original_price && targetProduct.original_price !== targetProduct.price;
+    if (hasPriceChanged || simulatedFailure === 'PRICE_CHANGED') {
+      const oldPrice = targetProduct.original_price || (targetProduct.price - 300);
+      const updatedPrice = targetProduct.price;
 
       await db.logAgentAction({
         action_type: 'PRICE_VALIDATION',
@@ -123,7 +304,7 @@ export async function processBuyerMessage(
 
       const msg = await db.addMessage({
         role: 'assistant',
-        content: `⚠️ **Price Update Alert**: The price for **${targetProduct.name}** has updated from ₹${oldPrice} to ₹${updatedPrice} in the seller database. Would you still like to proceed with the purchase?`,
+        content: `⚠️ **Price Update Alert**: The price for **${targetProduct.name}** has updated from ₹${oldPrice.toLocaleString('en-IN')} to ₹${updatedPrice.toLocaleString('en-IN')} in the seller database. Would you still like to proceed with the purchase?`,
         metadata: {
           recommended_products: [targetProduct],
           failure_type: 'PRICE_CHANGED',
@@ -176,11 +357,11 @@ export async function processBuyerMessage(
       reason: 'Item validated and added to buyer cart',
     });
 
-    const confirmationText = `Great! I've added **${targetProduct.name}** to your cart.\n\n` +
+    const confirmationText = `Great choice! I've added **${targetProduct.name}** to your cart.\n\n` +
       `• **Item Total**: ₹${targetProduct.price.toLocaleString('en-IN')}\n` +
       `• **Stock Status**: ${targetProduct.stock} units available\n` +
       `• **Delivery**: ${targetProduct.delivery_info?.est_days || 2} days free delivery\n\n` +
-      `Shall I proceed to launch **Razorpay Checkout** for ₹${targetProduct.price.toLocaleString('en-IN')}?`;
+      `Click **Buy Now via Razorpay** below to launch checkout!`;
 
     const msg = await db.addMessage({
       role: 'assistant',
@@ -200,7 +381,7 @@ export async function processBuyerMessage(
     };
   }
 
-  // 4. Generate Natural Recommendation Response
+  // 5. Generate Natural AI-Powered Recommendation Response
   let aiContent = '';
 
   if (searchResults.length > 0) {
@@ -214,27 +395,30 @@ export async function processBuyerMessage(
       reason: 'Generated factual recommendation based on catalog data',
     });
 
-    const isHindiDevanagariOrHinglish =
+    aiContent = await generateDynamicRecommendationMessage(userQuery, searchResults);
+  } else {
+    const isHinglish =
       /[\u0900-\u097F]/.test(userQuery) ||
       queryLower.includes('mujhe') ||
       queryLower.includes('chahiye') ||
-      queryLower.includes('aur') ||
-      queryLower.includes('hai');
+      queryLower.includes('hai') ||
+      queryLower.includes('koi');
 
-    if (isHindiDevanagariOrHinglish) {
-      aiContent = `Bilkul! Aapke request ke mutabiq mujhe **${searchResults.length} options** mile hain:\n\n` +
-        `Main **${topRec.name}** recommend karunga (Price: ₹${topRec.price.toLocaleString('en-IN')}).\n` +
-        `Key features: **${topRec.features.slice(0, 2).join(' aur ')}** (${topRec.stock} units in stock).\n\n` +
-        `Kya aap isse cart me add karna chahte hain?`;
+    if (isHinglish) {
+      aiContent = `Sorry! Humare catalog me abhi yeh item available nahi hai.\n\n` +
+        `Humare paas yeh popular tech categories in-stock hain:\n` +
+        `• **Wireless Headphones & Headsets** (JBL 770NC, Cosmic Byte GS430, Boat Rockerz)\n` +
+        `• **Gaming Mice & Keyboards** (Logitech G304, Keychron K2 V2)\n` +
+        `• **Smartwatches & Accessories** (Noise ColorFit, Anker PowerBank, Portronics Stand)\n\n` +
+        `Kya aap inme se koi item dekhna chahenge?`;
     } else {
-      aiContent = `I found **${searchResults.length} match(es)** in our catalog based on your request:\n\n` +
-        `I highly recommend **${topRec.name}** for **₹${topRec.price.toLocaleString('en-IN')}**.\n` +
-        `Key features: ${topRec.features.join(', ')}.\n` +
-        `Stock: ${topRec.stock} units available in inventory.\n\n` +
-        `Would you like to add this to your cart or proceed to checkout?`;
+      aiContent = `Sorry, we currently do not carry this item in our merchant catalog.\n\n` +
+        `Here are popular categories available in our store:\n` +
+        `• **Wireless ANC Headphones & Gaming Headsets**\n` +
+        `• **LIGHTSPEED Gaming Mice & Mechanical Keyboards**\n` +
+        `• **AMOLED Smartwatches & Ergonomic Accessories**\n\n` +
+        `Would you like to explore any of these instead?`;
     }
-  } else {
-    aiContent = `I couldn't find an exact match for "${userQuery}". Here are popular categories in our catalog: Wireless Headphones, Gaming Mice, Mechanical Keyboards, and Smartwatches under ₹5,000!`;
   }
 
   const msg = await db.addMessage({
@@ -265,6 +449,7 @@ Given the user query (which may be in English, Hindi Devanagari script, Hinglish
 1. Understand the user's intended category, specs (wireless, ANC, gaming, etc.), and max price.
 2. Select up to 4 matching product IDs from the catalog array provided below.
 3. If the query asks for "other headphones", "more options", or general category items, return all relevant items in that category.
+4. CRITICAL: If the user query asks for a product category NOT carried in our catalog (e.g., gaming chair, laptop, smartphone, TV, clothes, shoes, desk, table, monitor), return empty array "matching_product_ids": []. Do NOT select headsets, mice, or keyboards for a gaming chair request.
 
 User Query: "${userQuery}"
 
@@ -360,22 +545,144 @@ function searchProductsCatalogFallback(query: string, products: Product[]): Prod
     .split(/\s+/)
     .filter((t) => t.length > 2 && !stopWords.has(t) && !/^\d+$/.test(t));
 
+  const unsupportedWords = [
+    'chair', 'chairs', 'laptop', 'laptops', 'phone', 'phones', 'mobile', 'mobiles',
+    'tv', 'television', 'monitor', 'monitors', 'desk', 'desks', 'table', 'tables',
+    'shoe', 'shoes', 'shirt', 'shirts', 'pant', 'pants', 'clothes', 'clothing',
+    'camera', 'cameras', 'tablet', 'tablets', 'macbook', 'iphone'
+  ];
+
+  const hasUnsupportedNoun = qTokens.some((token) => unsupportedWords.includes(token));
+  if (hasUnsupportedNoun) {
+    return [];
+  }
+
   const matchedProducts = products.filter((p) => {
     const matchesPrice = p.price <= maxPrice;
     const textToSearch = (p.name + ' ' + p.description + ' ' + p.category + ' ' + p.features.join(' ')).toLowerCase();
 
-    const matchesKeywords = qTokens.length === 0 || qTokens.some((token) => textToSearch.includes(token));
+    const matchesKeywords = qTokens.length === 0 || qTokens.every((token) => textToSearch.includes(token)) || qTokens.some((token) => textToSearch.includes(token));
     return matchesPrice && matchesKeywords;
   });
 
-  // If specific match wasn't found, fallback to showing items under budget in category
-  if (matchedProducts.length === 0) {
-    const categoryMatches = products.filter((p) =>
-      p.price <= maxPrice &&
-      (normalizedQuery.includes('headphone') || normalizedQuery.includes('gaming') || normalizedQuery.includes('mouse') || normalizedQuery.includes('keyboard'))
-    );
-    if (categoryMatches.length > 0) return categoryMatches;
+  let results = matchedProducts;
+
+  // Apply Non-Keyword Spec & Budget Sorting
+  const qLower = query.toLowerCase();
+  if (qLower.includes('cheapest') || qLower.includes('sabse sasta') || qLower.includes('lowest price') || qLower.includes('sasta')) {
+    results.sort((a, b) => a.price - b.price);
+  } else if (qLower.includes('expensive') || qLower.includes('premium') || qLower.includes('highest price') || qLower.includes('mehenga')) {
+    results.sort((a, b) => b.price - a.price);
+  } else if (qLower.includes('battery') || qLower.includes('playback') || qLower.includes('backup')) {
+    results.sort((a, b) => {
+      const getBattery = (p: Product) => {
+        const feat = p.features.find((f) => f.toLowerCase().includes('hour') || f.toLowerCase().includes('h'));
+        if (!feat) return 0;
+        const match = feat.match(/(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      };
+      return getBattery(b) - getBattery(a);
+    });
   }
 
-  return matchedProducts.length > 0 ? matchedProducts : products.filter((p) => p.price <= maxPrice).slice(0, 4);
+  return results.slice(0, 4);
+}
+
+async function generateDynamicRecommendationMessage(userQuery: string, matchedProducts: Product[]): Promise<string> {
+  const topRec = matchedProducts[0];
+  const otherCount = matchedProducts.length - 1;
+
+  const prompt = `You are a helpful, enthusiastic AI Shopping Assistant for an e-commerce platform.
+Generate a friendly, concise, natural response for a customer asking for product recommendations.
+
+Customer Query: "${userQuery}"
+Top Recommended Product: ${topRec.name} (Price: ₹${topRec.price}, Stock: ${topRec.stock}, Features: ${topRec.features.join(', ')})
+Total Matching Products Found: ${matchedProducts.length}
+
+Guidelines:
+1. If user asked in Hindi or Hinglish (e.g. "mujhe", "chahiye"), reply in warm, natural Hinglish. Otherwise reply in natural English.
+2. Highlight why ${topRec.name} is a great match for their specific request (price, specs, features).
+3. Mention key features naturally (not like a rigid template).
+4. End with a natural call to action (e.g., asking if they want to add it to cart or buy now).
+5. Keep it concise (under 4-5 lines). Do not include JSON formatting. Return plain markdown text.`;
+
+  // 1. Try Groq LLaMA 3.3 70B
+  if (isGroqConfigured()) {
+    try {
+      const response = await generateGroqCompletion(
+        prompt,
+        'You are an expert e-commerce conversational assistant.'
+      );
+      if (response && response.trim().length > 10) {
+        return response.trim();
+      }
+    } catch (e) {
+      console.warn('Groq dynamic message fallback:', e);
+    }
+  }
+
+  // 2. Try Gemini
+  if (ai) {
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+      if (response.text && response.text.trim().length > 10) {
+        return response.text.trim();
+      }
+    } catch (e) {
+      console.warn('Gemini dynamic message fallback:', e);
+    }
+  }
+
+  // 3. Fallback to rich dynamic variation engine if AI model is unreachable
+  const isHinglish =
+    /[\u0900-\u097F]/.test(userQuery) ||
+    userQuery.toLowerCase().includes('mujhe') ||
+    userQuery.toLowerCase().includes('chahiye') ||
+    userQuery.toLowerCase().includes('aur') ||
+    userQuery.toLowerCase().includes('hai');
+
+  const randomIdx = Math.floor(Math.random() * 3);
+
+  if (isHinglish) {
+    const hinglishTemplates = [
+      `Sahi choice! Aapke request ke liye **${matchedProducts.length} options** mile hain.\n\n` +
+        `Main **${topRec.name}** recommend karunga (Price: ₹${topRec.price.toLocaleString('en-IN')}).\n` +
+        `Isme aapko milega: **${topRec.features.slice(0, 3).join(', ')}** (${topRec.stock} units left).\n\n` +
+        `Kya main isse aapke cart me add karke checkout launch karoon?`,
+
+      `Aapke request ke mutabiq **${topRec.name}** sabse perfect match hai!\n\n` +
+        `• **Price**: ₹${topRec.price.toLocaleString('en-IN')}\n` +
+        `• **Highlights**: ${topRec.features.join(' • ')}\n` +
+        `• **Available Options**: ${matchedProducts.length} total matches in catalog\n\n` +
+        `Aap isse buy karna chahte hain ya baki options dekhne hain?`,
+
+      `Bilkul! **${topRec.name}** aapke budget aur requirements ke sath bilkul fit baithta hai (₹${topRec.price.toLocaleString('en-IN')}).\n\n` +
+        `Key Specs: **${topRec.features.slice(0, 2).join(' aur ')}**.\n\n` +
+        `Kya hum Razorpay API ke through iska order confirm karein?`,
+    ];
+    return hinglishTemplates[randomIdx];
+  }
+
+  const englishTemplates = [
+    `Great news! I found **${matchedProducts.length} matching item(s)** in our catalog:\n\n` +
+      `My top recommendation is **${topRec.name}** for **₹${topRec.price.toLocaleString('en-IN')}**.\n` +
+      `Key Highlights: ${topRec.features.join(' • ')}.\n` +
+      `Stock Status: ${topRec.stock} units available.\n\n` +
+      `Would you like me to add this to your cart or proceed to checkout?`,
+
+    `Based on your request, **${topRec.name}** is an ideal choice for **₹${topRec.price.toLocaleString('en-IN')}**.\n\n` +
+      `• **Standout Specs**: ${topRec.features.slice(0, 3).join(', ')}\n` +
+      `• **Availability**: ${topRec.stock} units in inventory\n` +
+      `• **Other Matches**: ${otherCount > 0 ? `${otherCount} additional options available below` : 'Top single match'}\n\n` +
+      `Shall we initiate Razorpay checkout for this item?`,
+
+    `Here are the best options for your search! **${topRec.name}** stands out as the best pick at **₹${topRec.price.toLocaleString('en-IN')}**.\n\n` +
+      `Features: ${topRec.features.join(', ')}.\n\n` +
+      `Would you like to buy this now or compare with other items?`,
+  ];
+
+  return englishTemplates[randomIdx];
 }

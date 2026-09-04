@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, Bot, ArrowRight, Shield, Zap, Lock } from 'lucide-react';
+import { Building2, Bot, ArrowRight, Shield, Zap, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const [role, setRole] = useState<'seller' | 'buyer'>('seller');
   const [email, setEmail] = useState('seller@demo.com');
   const [password, setPassword] = useState('••••••••••••');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleRoleSwitch = (selectedRole: 'seller' | 'buyer') => {
     setRole(selectedRole);
@@ -87,12 +88,21 @@ export default function LoginPage() {
 
             <div>
               <label className="text-xs font-semibold text-zinc-300">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
-              />
+              <div className="relative mt-1.5">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors cursor-pointer p-1"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             <button
@@ -103,38 +113,6 @@ export default function LoginPage() {
               <ArrowRight className="h-4 w-4" />
             </button>
           </form>
-
-          {/* Quick Demo Instant Logins for Buildathon Judges */}
-          <div className="border-t border-zinc-800/80 pt-4 space-y-2">
-            <p className="text-[11px] font-semibold text-zinc-500 text-center uppercase tracking-wider">
-              Quick 1-Click Demo Login (Judges & Evaluators)
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => router.push('/seller')}
-                className="rounded-xl border border-zinc-800 bg-zinc-950 p-2.5 text-left text-xs hover:border-indigo-500 transition-all"
-              >
-                <div className="font-bold text-white flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5 text-indigo-400" />
-                  <span>Demo Merchant</span>
-                </div>
-                <div className="text-[10px] text-zinc-500">seller@demo.com</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => router.push('/buyer')}
-                className="rounded-xl border border-zinc-800 bg-zinc-950 p-2.5 text-left text-xs hover:border-indigo-500 transition-all"
-              >
-                <div className="font-bold text-white flex items-center gap-1.5">
-                  <Bot className="h-3.5 w-3.5 text-emerald-400" />
-                  <span>Demo Consumer</span>
-                </div>
-                <div className="text-[10px] text-zinc-500">buyer@demo.com</div>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 

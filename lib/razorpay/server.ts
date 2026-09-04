@@ -19,7 +19,7 @@ export async function createRazorpayOrder(amountInINR: number, receiptId: string
         amount: amountInPaisa,
         currency: 'INR',
         receipt: receiptId,
-        payment_capture: 1,
+        payment_capture: true,
       });
       return {
         id: order.id,

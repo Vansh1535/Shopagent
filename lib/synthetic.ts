@@ -218,8 +218,7 @@ export function generateSyntheticOrders(products: Product[], count: number = 3):
           product_id: prod.id,
           quantity: qty,
           unit_price: prod.price,
-          total_price: totalAmount,
-          product: prod,
+          product_name: prod.name,
         },
       ],
       razorpay_order_id: `order_synth_rzp_${Math.random().toString(36).substring(2, 10)}`,
@@ -235,11 +234,11 @@ export function generateSyntheticOrders(products: Product[], count: number = 3):
  * Generate synthetic money audit trail actions
  */
 export function generateSyntheticAuditActions(count: number = 4): AgentAction[] {
-  const actionTypes = [
-    'QUERY_CATALOG',
-    'APPLY_POLICY_GATE',
-    'CREATE_CHECKOUT',
-    'VERIFY_PAYMENT_SIGNATURE',
+  const actionTypes: AgentAction['action_type'][] = [
+    'SEARCH_PRODUCTS',
+    'POLICY_CHECK',
+    'RAZORPAY_ORDER_CREATED',
+    'PAYMENT_SUCCESS',
   ];
 
   const actions: AgentAction[] = [];
@@ -248,27 +247,25 @@ export function generateSyntheticAuditActions(count: number = 4): AgentAction[] 
   for (let i = 0; i < count; i++) {
     const type = actionTypes[i % actionTypes.length];
     let reason = '';
-    let status: 'allowed' | 'blocked' = 'allowed';
+    let status: AgentAction['status'] = 'SUCCESS';
 
-    if (type === 'QUERY_CATALOG') {
+    if (type === 'SEARCH_PRODUCTS') {
       reason = 'AI Agent searched NLU catalog for wireless ANC noise cancelling headphones under ₹10,000.';
-    } else if (type === 'APPLY_POLICY_GATE') {
+    } else if (type === 'POLICY_CHECK') {
       reason = 'Merchant Policy Gate: Discount 0% <= Max 15%. Order Value ₹5,999 <= ₹15,000 ceiling. APPROVED.';
-    } else if (type === 'CREATE_CHECKOUT') {
+    } else if (type === 'RAZORPAY_ORDER_CREATED') {
       reason = 'Razorpay Test Order order_synth_rzp_8923 created on server with HMAC SHA256 signature binding.';
-    } else if (type === 'VERIFY_PAYMENT_SIGNATURE') {
+    } else if (type === 'PAYMENT_SUCCESS') {
       reason = 'Razorpay HMAC signature verified successfully. Payment captured & stock updated.';
     }
 
     actions.push({
       id: `action-synth-${now}-${i}`,
-      agent_id: 'shop-agent-buyer-v1',
       buyer_id: DEMO_BUYER.id,
-      seller_id: DEMO_SELLER.id,
       action_type: type,
       status: status,
       reason: reason,
-      metadata: { synthetic: true, timestamp: new Date(now - i * 1200000).toISOString() },
+      input: { synthetic: true, timestamp: new Date(now - i * 1200000).toISOString() },
       created_at: new Date(now - i * 1200000).toISOString(),
     });
   }

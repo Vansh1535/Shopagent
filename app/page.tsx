@@ -44,13 +44,41 @@ export default function DayNightLandingPage() {
 
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-4 pt-2">
-                <button
-                  onClick={() => setIsAuthModalOpen(true)}
-                  className="btn-ivory rounded-full px-7 py-3.5 text-xs font-bold inline-flex items-center gap-2 shadow-xl cursor-pointer"
-                >
-                  <span>Launch Platform</span>
-                  <ArrowRight className="h-4 w-4" />
-                </button>
+                {user ? (
+                  user.role === 'seller' ? (
+                    <Link
+                      href="/seller"
+                      className="btn-ivory rounded-full px-7 py-3.5 text-xs font-bold inline-flex items-center gap-2 shadow-xl cursor-pointer"
+                    >
+                      <span>Go to Merchant Dashboard</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  ) : user.role === 'buyer' ? (
+                    <Link
+                      href="/buyer"
+                      className="btn-ivory rounded-full px-7 py-3.5 text-xs font-bold inline-flex items-center gap-2 shadow-xl cursor-pointer"
+                    >
+                      <span>Start AI Shopping Chat</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/admin"
+                      className="btn-ivory rounded-full px-7 py-3.5 text-xs font-bold inline-flex items-center gap-2 shadow-xl cursor-pointer"
+                    >
+                      <span>Go to Admin Console</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  )
+                ) : (
+                  <button
+                    onClick={() => setIsAuthModalOpen(true)}
+                    className="btn-ivory rounded-full px-7 py-3.5 text-xs font-bold inline-flex items-center gap-2 shadow-xl cursor-pointer"
+                  >
+                    <span>Sign In to Start</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -167,13 +195,41 @@ export default function DayNightLandingPage() {
           </div>
 
           <div>
-            <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="btn-ivory rounded-full px-10 py-5 text-sm font-semibold inline-flex items-center gap-3 shadow-2xl cursor-pointer"
-            >
-              <span>Choose your path</span>
-              <ArrowRight className="h-5 w-5" />
-            </button>
+            {user ? (
+              user.role === 'seller' ? (
+                <Link
+                  href="/seller"
+                  className="btn-ivory rounded-full px-10 py-5 text-sm font-semibold inline-flex items-center gap-3 shadow-2xl cursor-pointer"
+                >
+                  <span>Go to Merchant Dashboard</span>
+                  <ArrowRight className="h-5 w-5" />
+                </Link>
+              ) : user.role === 'buyer' ? (
+                <Link
+                  href="/buyer"
+                  className="btn-ivory rounded-full px-10 py-5 text-sm font-semibold inline-flex items-center gap-3 shadow-2xl cursor-pointer"
+                >
+                  <span>Start AI Shopping Chat</span>
+                  <ArrowRight className="h-5 w-5" />
+                </Link>
+              ) : (
+                <Link
+                  href="/admin"
+                  className="btn-ivory rounded-full px-10 py-5 text-sm font-semibold inline-flex items-center gap-3 shadow-2xl cursor-pointer"
+                >
+                  <span>Go to Admin Console</span>
+                  <ArrowRight className="h-5 w-5" />
+                </Link>
+              )
+            ) : (
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="btn-ivory rounded-full px-10 py-5 text-sm font-semibold inline-flex items-center gap-3 shadow-2xl cursor-pointer"
+              >
+                <span>Sign In to Start</span>
+                <ArrowRight className="h-5 w-5" />
+              </button>
+            )}
           </div>
         </div>
       </section>

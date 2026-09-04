@@ -64,40 +64,7 @@ export default function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
             >
               Return to Landing Page
             </Link>
-          </div>
-
-          {/* Quick Demo Login Shortcuts */}
-          <div className="border-t border-zinc-800/80 pt-5 space-y-2">
-            <p className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
-              QUICK 1-CLICK DEMO LOGIN
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => switchRole('seller')}
-                className="rounded-xl border border-zinc-800 bg-[#050507] p-2 text-center hover:border-[#e5c178]/50 transition-all"
-              >
-                <Building2 className="h-4 w-4 text-[#e5c178] mx-auto mb-1" />
-                <span className="block text-[10px] font-bold text-white">Merchant</span>
-              </button>
-
-              <button
-                onClick={() => switchRole('buyer')}
-                className="rounded-xl border border-zinc-800 bg-[#050507] p-2 text-center hover:border-[#e5c178]/50 transition-all"
-              >
-                <Bot className="h-4 w-4 text-[#e5c178] mx-auto mb-1" />
-                <span className="block text-[10px] font-bold text-white">Buyer AI</span>
-              </button>
-
-              <button
-                onClick={() => switchRole('admin')}
-                className="rounded-xl border border-zinc-800 bg-[#050507] p-2 text-center hover:border-[#e5c178]/50 transition-all"
-              >
-                <ShieldCheck className="h-4 w-4 text-[#e5c178] mx-auto mb-1" />
-                <span className="block text-[10px] font-bold text-white">Admin</span>
-              </button>
-            </div>
-          </div>
-        </div>
+          </div>        </div>
 
         <AuthModal
           isOpen={isAuthModalOpen}

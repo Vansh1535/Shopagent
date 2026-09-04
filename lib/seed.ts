@@ -51,6 +51,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Budget wired gaming headset with 3D surround sound, flexible microphone, and RGB lighting for PC & PS5.',
     category: 'headphones',
     price: 1299,
+    original_price: 999,
     currency: 'INR',
     stock: 24,
     image_url: 'https://images.unsplash.com/photo-1599669454699-24889d6df33b?w=500&q=80',

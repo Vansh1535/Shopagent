@@ -25,6 +25,7 @@ import { Product, CommercePolicy, AgentAction, Order } from '@/lib/types';
 import { DEMO_COMMERCE_POLICY } from '@/lib/seed';
 import AuthGuard from '@/components/AuthGuard';
 import Navbar from '@/components/Navbar';
+import CustomAlertModal, { AlertState } from '@/components/CustomAlertModal';
 
 export default function PlatformAdminConsole() {
   const [activeTab, setActiveTab] = useState<'audit' | 'synthetic' | 'policy' | 'analytics'>('audit');
@@ -42,6 +43,7 @@ export default function PlatformAdminConsole() {
   const [filterType, setFilterType] = useState<string>('all');
   const [syntheticNotice, setSyntheticNotice] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [customAlert, setCustomAlert] = useState<AlertState | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Fetch dynamic data from database APIs
@@ -97,10 +99,20 @@ export default function PlatformAdminConsole() {
         await fetchAllAdminData();
         setTimeout(() => setSyntheticNotice(null), 5000);
       } else {
-        alert(`Error: ${data.error}`);
+        setCustomAlert({
+          isOpen: true,
+          title: 'Synthetic Engine Error',
+          message: data.error || 'Failed to execute synthetic data operation.',
+          type: 'error',
+        });
       }
     } catch (e: any) {
-      alert(`Synthetic engine error: ${e.message}`);
+      setCustomAlert({
+        isOpen: true,
+        title: 'System Exception',
+        message: `Synthetic engine failure: ${e.message}`,
+        type: 'error',
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -108,8 +120,8 @@ export default function PlatformAdminConsole() {
 
   const filteredAuditActions = auditActions.filter((a) => {
     if (filterType === 'all') return true;
-    if (filterType === 'allowed') return a.status === 'allowed';
-    if (filterType === 'blocked') return a.status === 'blocked';
+    if (filterType === 'allowed') return a.status === 'SUCCESS' || a.status === 'RECOVERED';
+    if (filterType === 'blocked') return a.status === 'POLICY_REJECTED' || a.status === 'FAILED';
     return a.action_type === filterType;
   });
 
@@ -123,15 +135,7 @@ export default function PlatformAdminConsole() {
         <div className="flex flex-1 h-[calc(100vh-61px)] overflow-hidden">
           {/* Sidebar Navigation */}
       <aside className="w-64 border-r border-zinc-800/60 bg-[#07070a] flex flex-col justify-between p-5 shrink-0">
-        <div className="space-y-8">
-          <Link href="/" className="flex items-center gap-2.5 px-1">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#e5c178] shadow-[0_0_10px_#e5c178]" />
-            <div>
-              <div className="text-sm font-bold text-white tracking-tight">ShopAgent <span className="serif-gold font-normal">Admin</span></div>
-              <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Platform Oversight</div>
-            </div>
-          </Link>
-
+        <div className="space-y-6">
           <nav className="space-y-1.5">
             <button
               onClick={() => {
@@ -295,7 +299,7 @@ export default function PlatformAdminConsole() {
                     {filteredAuditActions.map((action) => (
                       <div key={action.id} className="relative group">
                         <div className={`absolute -left-[31px] top-1.5 h-3.5 w-3.5 rounded-full border-2 border-zinc-950 ring-4 ring-zinc-900 ${
-                          action.status === 'allowed' ? 'bg-emerald-400' : 'bg-red-400'
+                          action.status === 'SUCCESS' || action.status === 'RECOVERED' ? 'bg-emerald-400' : 'bg-red-400'
                         }`} />
 
                         <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 space-y-2 shadow-md">
@@ -303,7 +307,7 @@ export default function PlatformAdminConsole() {
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-xs font-bold text-[#e5c178]">{action.action_type}</span>
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                action.status === 'allowed'
+                                action.status === 'SUCCESS' || action.status === 'RECOVERED'
                                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                                   : 'bg-red-500/10 text-red-400 border border-red-500/20'
                               }`}>
@@ -318,8 +322,8 @@ export default function PlatformAdminConsole() {
                           <p className="text-xs text-zinc-300 font-sans leading-relaxed">{action.reason}</p>
 
                           <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-500 border-t border-zinc-900 pt-2">
-                            <span>Agent: <code className="text-zinc-400">{action.agent_id}</code></span>
-                            <span>Buyer: <code className="text-zinc-400">{action.buyer_id}</code></span>
+                            <span>Agent: <code className="text-zinc-400">{(action as any).agent_id || 'shop-agent-v1'}</code></span>
+                            <span>Buyer: <code className="text-zinc-400">{action.buyer_id || 'buyer-demo-001'}</code></span>
                           </div>
                         </div>
                       </div>
@@ -528,6 +532,8 @@ export default function PlatformAdminConsole() {
       </main>
     </div>
   </div>
+
+  <CustomAlertModal alert={customAlert} onClose={() => setCustomAlert(null)} />
 </AuthGuard>
 );
 }

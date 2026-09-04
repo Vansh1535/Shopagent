@@ -9,6 +9,8 @@ export async function POST(req: NextRequest) {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
+      status,
+      paymentFailed,
       simulatedFailure,
     } = body;
 
@@ -19,8 +21,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Handle Simulated Failure 3: Payment Failure
-    if (simulatedFailure === 'PAYMENT_FAILED') {
+    // Handle Natural Scenario 3: Payment Failure Recovery
+    if (status === 'failed' || paymentFailed || simulatedFailure === 'PAYMENT_FAILED') {
       await db.logAgentAction({
         action_type: 'PAYMENT_FAILED',
         input: { razorpay_order_id, razorpay_payment_id: razorpay_payment_id || 'pay_failed_sim' },
