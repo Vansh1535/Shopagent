@@ -1,49 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Store, Languages, PackageCheck, ArrowDown, Building2, Bot } from 'lucide-react';
+import { ArrowRight, Store, Languages, PackageCheck, ArrowDown } from 'lucide-react';
 import HeroOrb from '@/components/HeroOrb';
 import AuthModal from '@/components/AuthModal';
+import Navbar from '@/components/Navbar';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 export default function DayNightLandingPage() {
-  const [timeGmt, setTimeGmt] = useState<string>('');
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setTimeGmt(now.toISOString().substring(11, 19) + ' GMT');
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const { setIsAuthModalOpen, isAuthModalOpen, user } = useAuth();
 
   return (
     <div className="min-h-screen w-full bg-pitch-black text-zinc-100 selection:bg-[#e5c178] selection:text-black">
-      {/* Top Navbar: Clean Logo + Sign in / Sign up Button + GMT Clock */}
-      <header className="sticky top-0 z-40 w-full border-b border-zinc-800/40 bg-[#050507]/90 backdrop-blur-xl px-6 sm:px-12 lg:px-16 py-4">
-        <div className="w-full flex items-center justify-between">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#e5c178] shadow-[0_0_10px_#e5c178]" />
-            <span className="text-base font-bold tracking-tight text-white">ShopAgent <span className="text-zinc-500 font-normal">Studio</span></span>
-          </Link>
+      {/* Top Navbar */}
+      <Navbar />
 
-          {/* Right Action Button: Sign in / Sign up & Live Clock */}
-          <div className="flex items-center gap-6">
-            <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="btn-ivory rounded-full px-6 py-2.5 text-xs font-semibold flex items-center gap-2 shadow-lg cursor-pointer"
-            >
-              <span>Sign in / Sign up</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
-            <span className="hidden sm:inline font-mono text-[11px] text-zinc-500">{timeGmt || '12:48:13 GMT'}</span>
-          </div>
-        </div>
-      </header>
 
       {/* Main Hero Container */}
       <section className="w-full px-4 sm:px-8 lg:px-12 pt-8 pb-16">

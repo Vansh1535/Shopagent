@@ -14,6 +14,8 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { ChatMessage, Product } from '@/lib/types';
+import AuthGuard from '@/components/AuthGuard';
+import Navbar from '@/components/Navbar';
 
 declare global {
   interface Window {
@@ -243,8 +245,11 @@ export default function BuyerAIWorkspace() {
   };
 
   return (
-    <div className="flex h-screen bg-pitch-black text-zinc-100 overflow-hidden font-sans">
-      {/* Sidebar */}
+    <AuthGuard allowedRoles={['buyer', 'seller', 'admin']}>
+      <div className="min-h-screen bg-pitch-black text-zinc-100 flex flex-col font-sans">
+        <Navbar />
+        <div className="flex flex-1 h-[calc(100vh-61px)] overflow-hidden">
+          {/* Sidebar */}
       <aside className="w-72 border-r border-zinc-800/60 bg-[#07070a] flex flex-col justify-between p-5 shrink-0 hidden md:flex">
         <div className="space-y-8">
           <div className="flex items-center justify-between px-1">
@@ -521,6 +526,8 @@ export default function BuyerAIWorkspace() {
           </div>
         </div>
       )}
-    </div>
+        </div>
+      </div>
+    </AuthGuard>
   );
 }

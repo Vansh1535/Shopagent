@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { Product, CommercePolicy, AgentAction, Order } from '@/lib/types';
 import { DEMO_COMMERCE_POLICY } from '@/lib/seed';
+import AuthGuard from '@/components/AuthGuard';
+import Navbar from '@/components/Navbar';
 
 export default function PlatformAdminConsole() {
   const [activeTab, setActiveTab] = useState<'audit' | 'synthetic' | 'policy' | 'analytics'>('audit');
@@ -115,8 +117,11 @@ export default function PlatformAdminConsole() {
   const aiReadyProducts = products.filter((p) => p.is_ai_ready).length;
 
   return (
-    <div className="flex h-screen bg-pitch-black text-zinc-100 overflow-hidden font-sans">
-      {/* Sidebar Navigation */}
+    <AuthGuard allowedRoles={['admin']}>
+      <div className="min-h-screen bg-pitch-black text-zinc-100 flex flex-col font-sans">
+        <Navbar />
+        <div className="flex flex-1 h-[calc(100vh-61px)] overflow-hidden">
+          {/* Sidebar Navigation */}
       <aside className="w-64 border-r border-zinc-800/60 bg-[#07070a] flex flex-col justify-between p-5 shrink-0">
         <div className="space-y-8">
           <Link href="/" className="flex items-center gap-2.5 px-1">
@@ -538,5 +543,7 @@ export default function PlatformAdminConsole() {
         </div>
       </main>
     </div>
-  );
+  </div>
+</AuthGuard>
+);
 }

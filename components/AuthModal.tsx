@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Building2, Bot, ArrowRight, X, ShieldCheck, Zap } from 'lucide-react';
+import { Building2, Bot, ArrowRight, X, ShieldCheck } from 'lucide-react';
+import { useAuth, UserRole } from '@/lib/auth/AuthContext';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -11,13 +12,14 @@ interface AuthModalProps {
 
 export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const router = useRouter();
-  const [role, setRole] = useState<'seller' | 'buyer' | 'admin'>('seller');
+  const { login } = useAuth();
+  const [role, setRole] = useState<UserRole>('seller');
   const [email, setEmail] = useState('seller@demo.com');
   const [password, setPassword] = useState('••••••••••••');
 
   if (!isOpen) return null;
 
-  const handleRoleSwitch = (selectedRole: 'seller' | 'buyer' | 'admin') => {
+  const handleRoleSwitch = (selectedRole: UserRole) => {
     setRole(selectedRole);
     if (selectedRole === 'seller') setEmail('seller@demo.com');
     else if (selectedRole === 'buyer') setEmail('buyer@demo.com');
@@ -27,9 +29,55 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     onClose();
+
+    const name =
+      role === 'seller'
+        ? 'Bharat Tech Store (Seller)'
+        : role === 'buyer'
+        ? 'Rahul Sharma (Consumer)'
+        : 'Platform Administrator';
+
+    login({
+      id: `usr_${role}_${Date.now()}`,
+      name,
+      email,
+      role,
+    });
+
     if (role === 'seller') {
       router.push('/seller');
     } else if (role === 'buyer') {
+      router.push('/buyer');
+    } else {
+      router.push('/admin');
+    }
+  };
+
+  const handleQuickDemo = (selectedRole: UserRole) => {
+    onClose();
+    const name =
+      selectedRole === 'seller'
+        ? 'Bharat Tech Store (Seller)'
+        : selectedRole === 'buyer'
+        ? 'Rahul Sharma (Consumer)'
+        : 'Platform Administrator';
+    const demoEmail =
+      selectedRole === 'seller'
+        ? 'seller@demo.com'
+        : selectedRole === 'buyer'
+        ? 'buyer@demo.com'
+        : 'admin@demo.com';
+
+    login({
+      id: `usr_${selectedRole}_demo`,
+      name,
+      email: demoEmail,
+      role: selectedRole,
+    });
+
+    if (selectedRole === 'seller') {
+      router.push('/seller');
+    } else if (selectedRole === 'buyer') {
       router.push('/buyer');
     } else {
       router.push('/admin');
@@ -140,10 +188,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <div className="grid grid-cols-3 gap-1.5">
             <button
               type="button"
-              onClick={() => {
-                onClose();
-                router.push('/seller');
-              }}
+              onClick={() => handleQuickDemo('seller')}
               className="rounded-xl border border-zinc-800 bg-[#050507] p-2.5 text-left hover:border-[#e5c178]/50 transition-all group"
             >
               <div className="font-bold text-[11px] text-white group-hover:text-[#e5c178] flex items-center gap-1">
@@ -155,10 +200,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
             <button
               type="button"
-              onClick={() => {
-                onClose();
-                router.push('/buyer');
-              }}
+              onClick={() => handleQuickDemo('buyer')}
               className="rounded-xl border border-zinc-800 bg-[#050507] p-2.5 text-left hover:border-[#e5c178]/50 transition-all group"
             >
               <div className="font-bold text-[11px] text-white group-hover:text-[#e5c178] flex items-center gap-1">
@@ -170,10 +212,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
             <button
               type="button"
-              onClick={() => {
-                onClose();
-                router.push('/admin');
-              }}
+              onClick={() => handleQuickDemo('admin')}
               className="rounded-xl border border-zinc-800 bg-[#050507] p-2.5 text-left hover:border-[#e5c178]/50 transition-all group"
             >
               <div className="font-bold text-[11px] text-white group-hover:text-[#e5c178] flex items-center gap-1">
@@ -188,3 +227,4 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     </div>
   );
 }
+
