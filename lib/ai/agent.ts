@@ -480,18 +480,65 @@ export async function processBuyerMessage(
   // 5. Generate Natural AI-Powered Recommendation Response
   let aiContent = '';
 
-  if (searchResults.length > 0) {
-    const topRec = searchResults[0];
+  // Detect over-budget results tagged by searchProductsCatalogFallback
+  const overBudgetResults = searchResults.filter((p: any) => p._overBudget === true);
+  const withinBudgetResults = searchResults.filter((p: any) => !p._overBudget);
+
+  if (withinBudgetResults.length > 0) {
+    const topRec = withinBudgetResults[0];
 
     await db.logAgentAction({
       action_type: 'RECOMMENDATION',
       input: { top_recommendation: topRec.name, price: topRec.price },
-      output: { total_recommendations: searchResults.length },
+      output: { total_recommendations: withinBudgetResults.length },
       status: 'SUCCESS',
       reason: 'Generated factual recommendation based on catalog data',
     });
 
-    aiContent = await generateDynamicRecommendationMessage(userQuery, searchResults);
+    aiContent = await generateDynamicRecommendationMessage(userQuery, withinBudgetResults);
+  } else if (overBudgetResults.length > 0) {
+    // Category EXISTS in catalog but all options exceed the requested budget
+    const cheapestOverBudget = [...overBudgetResults].sort((a, b) => a.price - b.price)[0];
+    const requestedBudget = (cheapestOverBudget as any)._requestedBudget;
+
+    await db.logAgentAction({
+      action_type: 'SEARCH_PRODUCTS',
+      input: { query: userQuery, budget: requestedBudget },
+      output: { over_budget_matches: overBudgetResults.map((p) => p.name) },
+      status: 'PARTIAL',
+      reason: `Category found but all products exceed requested budget of ₹${requestedBudget}`,
+    });
+
+    const isHinglish =
+      /[\u0900-\u097F]/.test(userQuery) ||
+      queryLower.includes('mujhe') ||
+      queryLower.includes('chahiye') ||
+      queryLower.includes('hai') ||
+      queryLower.includes('koi');
+
+    if (isHinglish) {
+      aiContent = `Humare catalog me **${cheapestOverBudget.name}** available hai, lekin iska price ₹${cheapestOverBudget.price.toLocaleString('en-IN')} hai — jo aapke ₹${requestedBudget.toLocaleString('en-IN')} budget se zyada hai.\n\n` +
+        `Humare paas is category me available options:\n` +
+        overBudgetResults.map((p) => `• **${p.name}** — ₹${p.price.toLocaleString('en-IN')} (${p.stock} units)`).join('\n') +
+        `\n\nKya aap in options ko dekhna chahte hain ya koi aur category explore karein?`;
+    } else {
+      aiContent = `We have **${cheapestOverBudget.name}** in our catalog, but it's priced at ₹${cheapestOverBudget.price.toLocaleString('en-IN')} — above your ₹${requestedBudget.toLocaleString('en-IN')} budget.\n\n` +
+        `Available options in this category:\n` +
+        overBudgetResults.map((p) => `• **${p.name}** — ₹${p.price.toLocaleString('en-IN')} (${p.stock} units in stock)`).join('\n') +
+        `\n\nWould you like to explore these, or shall I look for something within your budget?`;
+    }
+
+    const msg = await db.addMessage({
+      role: 'assistant',
+      content: aiContent,
+      metadata: {
+        recommended_products: overBudgetResults.slice(0, 4),
+        over_budget: true,
+        requested_budget: requestedBudget,
+      },
+    });
+
+    return { message: msg, recommendedProducts: overBudgetResults.slice(0, 4) };
   } else {
     const isHinglish =
       /[\u0900-\u097F]/.test(userQuery) ||
@@ -503,9 +550,9 @@ export async function processBuyerMessage(
     if (isHinglish) {
       aiContent = `Sorry! Humare catalog me abhi yeh item available nahi hai.\n\n` +
         `Humare paas yeh popular tech categories in-stock hain:\n` +
-        `• **Wireless Headphones & Headsets** (JBL 770NC, Cosmic Byte GS430, Boat Rockerz)\n` +
-        `• **Gaming Mice & Keyboards** (Logitech G304, Keychron K2 V2)\n` +
-        `• **Smartwatches & Accessories** (Noise ColorFit, Anker PowerBank, Portronics Stand)\n\n` +
+        `• **Wireless Headphones & Headsets**\n` +
+        `• **Gaming Mice & Keyboards**\n` +
+        `• **Smartwatches & Accessories**\n\n` +
         `Kya aap inme se koi item dekhna chahenge?`;
     } else {
       aiContent = `Sorry, we currently do not carry this item in our merchant catalog.\n\n` +
@@ -521,11 +568,11 @@ export async function processBuyerMessage(
     role: 'assistant',
     content: aiContent,
     metadata: {
-      recommended_products: searchResults.slice(0, 4),
+      recommended_products: withinBudgetResults.slice(0, 4),
     },
   });
 
-  return { message: msg, recommendedProducts: searchResults.slice(0, 4) };
+  return { message: msg, recommendedProducts: withinBudgetResults.slice(0, 4) };
 }
 
 // Search catalog using Groq API (LLaMA 3.3 70B) or Gemini 2.5 Flash for natural language & multilingual intent parsing
@@ -542,10 +589,13 @@ async function searchCatalogWithAi(userQuery: string, products: Product[]): Prom
 
   const prompt = `You are an AI Product Search Matcher for an e-commerce catalog.
 Given the user query (which may be in English, Hindi Devanagari script, Hinglish, or shorthand):
-1. Understand the user's intended category, specs (wireless, ANC, gaming, etc.), and max price.
+1. Understand the user's intended category, specs (wireless, ANC, gaming, etc.), and max price budget.
 2. Select up to 4 matching product IDs from the catalog array provided below.
-3. If the query asks for "other headphones", "more options", or general category items, return all relevant items in that category.
-4. CRITICAL: If the user query asks for a product category NOT carried in our catalog (e.g., gaming chair, laptop, smartphone, TV, clothes, shoes, desk, table, monitor), return empty array "matching_product_ids": []. Do NOT select headsets, mice, or keyboards for a gaming chair request.
+3. Separate results into:
+   - "matching_product_ids": products that match the category AND are within the user's requested price budget.
+   - "over_budget_product_ids": products that match the category but EXCEED the user's requested price budget (only populate if matching_product_ids is empty).
+4. If the query asks for "other headphones", "more options", or general category items with no budget constraint, return all relevant items in "matching_product_ids".
+5. CRITICAL: If the user query asks for a product category NOT carried in our catalog (e.g., gaming chair, laptop, smartphone, TV, clothes, shoes, desk, table, monitor), return empty arrays. Do NOT select headsets, mice, or keyboards for a gaming chair request.
 
 User Query: "${userQuery}"
 
@@ -554,8 +604,15 @@ ${JSON.stringify(productCatalogSummary, null, 2)}
 
 Return strictly valid JSON with format:
 {
-  "matching_product_ids": ["prod-001", "prod-003"]
+  "matching_product_ids": ["prod-001"],
+  "over_budget_product_ids": []
 }`;
+
+  // Extract budget from query for tagging over-budget AI results
+  const budgetMatch = userQuery.match(/(?:under|below|less than|ke andar|tak|around)\s*(?:rs|inr|₹)?\s*(\d+)/i) ||
+                      userQuery.match(/(\d+)\s*(?:ke andar|under|below|tak)/i) ||
+                      userQuery.match(/(?:rs|inr|₹)\s*(\d+)/i);
+  const requestedBudget = budgetMatch ? parseInt(budgetMatch[1], 10) : null;
 
   // 1. Prioritize Groq API (LLaMA 3.3 70B) if configured
   if (isGroqConfigured()) {
@@ -569,6 +626,14 @@ Return strictly valid JSON with format:
       if (parsed.matching_product_ids && Array.isArray(parsed.matching_product_ids)) {
         const matched = products.filter((p) => parsed.matching_product_ids.includes(p.id));
         if (matched.length > 0) return matched;
+        // Check over-budget fallback from AI
+        if (parsed.over_budget_product_ids && Array.isArray(parsed.over_budget_product_ids) && parsed.over_budget_product_ids.length > 0) {
+          const overBudget = products.filter((p) => parsed.over_budget_product_ids.includes(p.id));
+          if (overBudget.length > 0 && requestedBudget) {
+            overBudget.forEach((p: any) => { p._overBudget = true; p._requestedBudget = requestedBudget; });
+            return overBudget;
+          }
+        }
       }
     } catch (err) {
       console.warn('Groq catalog search fallback:', err);
@@ -590,6 +655,14 @@ Return strictly valid JSON with format:
       if (parsed.matching_product_ids && Array.isArray(parsed.matching_product_ids)) {
         const matched = products.filter((p) => parsed.matching_product_ids.includes(p.id));
         if (matched.length > 0) return matched;
+        // Check over-budget fallback from AI
+        if (parsed.over_budget_product_ids && Array.isArray(parsed.over_budget_product_ids) && parsed.over_budget_product_ids.length > 0) {
+          const overBudget = products.filter((p) => parsed.over_budget_product_ids.includes(p.id));
+          if (overBudget.length > 0 && requestedBudget) {
+            overBudget.forEach((p: any) => { p._overBudget = true; p._requestedBudget = requestedBudget; });
+            return overBudget;
+          }
+        }
       }
     } catch (err) {
       console.warn('Gemini catalog search fallback:', err);
@@ -679,6 +752,21 @@ function searchProductsCatalogFallback(query: string, products: Product[]): Prod
       };
       return getBattery(b) - getBattery(a);
     });
+  }
+
+  // If nothing matched within budget, check if there are over-budget category matches
+  // and attach them as metadata so the caller can give a helpful "budget exceeded" message
+  if (results.length === 0 && maxPrice < 999999) {
+    const overBudgetMatches = products.filter((p) => {
+      const textToSearch = (p.name + ' ' + p.description + ' ' + p.category + ' ' + p.features.join(' ')).toLowerCase();
+      const matchesKeywords = qTokens.length === 0 || qTokens.every((token) => textToSearch.includes(token)) || qTokens.some((token) => textToSearch.includes(token));
+      return matchesKeywords && p.price > maxPrice;
+    });
+    // Tag them so the caller knows these are over-budget suggestions
+    if (overBudgetMatches.length > 0) {
+      overBudgetMatches.forEach((p: any) => { p._overBudget = true; p._requestedBudget = maxPrice; });
+      return overBudgetMatches.slice(0, 4);
+    }
   }
 
   return results.slice(0, 4);

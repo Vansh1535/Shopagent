@@ -544,10 +544,10 @@ export default function SellerAdminDashboard() {
   const getDynamicFunnelMetrics = () => {
     const totalQueries = auditActions.length > 0 ? auditActions.length : orders.length;
     const catalogMatches = auditActions.filter(
-      (a) => a.action_type?.includes('search') || a.action_type?.includes('recommend') || a.status === 'success'
+      (a) => a.action_type?.includes('search') || a.action_type?.includes('recommend') || a.status === 'SUCCESS'
     ).length || orders.length;
     const policyPassed = auditActions.filter(
-      (a) => a.status === 'success' || a.action_type?.includes('policy')
+      (a) => a.status === 'SUCCESS' || a.action_type?.includes('policy')
     ).length || orders.length;
     const paidOrders = orders.filter((o) => o.status === 'paid').length;
 

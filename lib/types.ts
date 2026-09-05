@@ -132,10 +132,11 @@ export interface AgentAction {
     | 'FAILURE_RECOVERY'
     | 'PAYMENT_RETRY'
     | 'PAYMENT_SUCCESS'
-    | 'ORDER_CONFIRMED';
+    | 'ORDER_CONFIRMED'
+    | 'AGENT_BUDGET_EXCEEDED';
   input?: any;
   output?: any;
-  status: 'SUCCESS' | 'POLICY_REJECTED' | 'FAILED' | 'RECOVERED';
+  status: 'SUCCESS' | 'POLICY_REJECTED' | 'FAILED' | 'RECOVERED' | 'PARTIAL';
   reason?: string;
   created_at: string;
 }
@@ -154,6 +155,11 @@ export interface ChatMessage {
     is_comparison?: boolean;
     razorpay_order_id?: string;
     amount?: number;
+    over_budget?: boolean;
+    buyer_budget?: number;
+    required_budget?: number;
+    requested_budget?: number;
+    target_product?: Product;
   };
   created_at: string;
 }
