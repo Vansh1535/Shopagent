@@ -305,6 +305,24 @@ export default function SellerAdminDashboard() {
     }
   };
 
+  const handleResetAllData = async () => {
+    try {
+      const res = await fetch('/api/seed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset_catalog' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCsvNotice('Database cleared and reset to fresh scratch state (0 orders, ₹0 GMV)!');
+        await fetchAllData();
+        setTimeout(() => setCsvNotice(null), 5000);
+      }
+    } catch (e) {
+      console.error('Error resetting database:', e);
+    }
+  };
+
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProdName) return;
@@ -658,6 +676,15 @@ export default function SellerAdminDashboard() {
               </div>
 
               <div className="flex items-center gap-3">
+                <button
+                  onClick={handleResetAllData}
+                  className="rounded-full border border-rose-500/30 bg-rose-500/10 px-3.5 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500 hover:text-white inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                  title="Clear all orders, payments, audit logs, and reset store to scratch"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>Reset Store Data</span>
+                </button>
+
                 <button
                   onClick={handleGenerateSyntheticCatalog}
                   className="rounded-full border border-[#e5c178]/40 bg-zinc-950 px-4 py-2 text-xs font-semibold text-[#e5c178] hover:bg-[#e5c178] hover:text-black inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
