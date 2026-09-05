@@ -56,6 +56,7 @@ export default function SellerAdminDashboard() {
   const [customAlert, setCustomAlert] = useState<AlertState | null>(null);
   const [csvNotice, setCsvNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [chartTimeframe, setChartTimeframe] = useState<'7d' | '30d' | 'quarter'>('7d');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -371,44 +372,76 @@ export default function SellerAdminDashboard() {
     return { pctStr, isPositive };
   };
 
-  // Dynamic 7-Day Revenue Velocity Chart Math
-  const getDynamic7DayChartData = () => {
-    const days: { label: string; dateStr: string; totalRevenue: number }[] = [];
-    const now = new Date();
+  // Dynamic Timeframe Revenue Velocity Chart Math
+  const getDynamicChartData = (timeframe: '7d' | '30d' | 'quarter' = chartTimeframe) => {
+    const buckets: { label: string; startMs: number; endMs: number; totalRevenue: number }[] = [];
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
 
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const label = i === 0 ? 'Today' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      days.push({ label, dateStr, totalRevenue: 0 });
+    if (timeframe === '7d') {
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now - i * dayMs);
+        const label = i === 0 ? 'Today' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const startMs = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        const endMs = startMs + dayMs;
+        buckets.push({ label, startMs, endMs, totalRevenue: 0 });
+      }
+    } else if (timeframe === '30d') {
+      for (let i = 6; i >= 0; i--) {
+        const daysAgo = i * 5;
+        const d = new Date(now - daysAgo * dayMs);
+        const label = i === 0 ? 'Today' : `${daysAgo}d ago`;
+        const startMs = now - (daysAgo + 5) * dayMs;
+        const endMs = now - daysAgo * dayMs;
+        buckets.push({ label, startMs, endMs, totalRevenue: 0 });
+      }
+    } else {
+      for (let i = 6; i >= 0; i--) {
+        const daysAgo = i * 15;
+        const d = new Date(now - daysAgo * dayMs);
+        const label = i === 0 ? 'Today' : `${daysAgo}d ago`;
+        const startMs = now - (daysAgo + 15) * dayMs;
+        const endMs = now - daysAgo * dayMs;
+        buckets.push({ label, startMs, endMs, totalRevenue: 0 });
+      }
     }
 
-    // Aggregate paid/created orders by date
+    // Aggregate paid/created orders into buckets
     orders.forEach((o) => {
       if (o.created_at) {
-        const orderDateStr = new Date(o.created_at).toISOString().split('T')[0];
-        const dayObj = days.find((d) => d.dateStr === orderDateStr);
-        if (dayObj) {
-          dayObj.totalRevenue += Number(o.total_amount || 0);
+        const orderTime = new Date(o.created_at).getTime();
+        const bucket = buckets.find((b) => orderTime >= b.startMs && orderTime < b.endMs);
+        if (bucket) {
+          bucket.totalRevenue += Number(o.total_amount || 0);
+        } else if (timeframe === '7d' && buckets.length > 0) {
+          const orderDateStr = new Date(o.created_at).toISOString().split('T')[0];
+          const todayStr = new Date().toISOString().split('T')[0];
+          if (orderDateStr === todayStr) {
+            buckets[buckets.length - 1].totalRevenue += Number(o.total_amount || 0);
+          }
         }
       }
     });
 
-    const maxRev = Math.max(...days.map((d) => d.totalRevenue), 1);
-    const hasData = days.some((d) => d.totalRevenue > 0);
+    const maxRev = Math.max(...buckets.map((b) => b.totalRevenue), 1);
+    const hasData = buckets.some((b) => b.totalRevenue > 0);
 
-    const points = days.map((day, idx) => {
-      const x = Math.round(idx * (700 / 6));
-      // y ranges from 170 (0 revenue) down to 40 (max revenue)
+    // Padding x coordinates so labels and dots are NOT cut off at edges
+    const paddingX = 45;
+    const chartWidth = 700;
+    const usableWidth = chartWidth - 2 * paddingX;
+
+    const points = buckets.map((bucket, idx) => {
+      const x = Math.round(paddingX + idx * (usableWidth / (buckets.length - 1)));
+      // y ranges from 160 (baseline) down to 35 (max revenue)
       const y = hasData
-        ? Math.round(170 - (day.totalRevenue / maxRev) * 130)
-        : 170;
+        ? Math.round(160 - (bucket.totalRevenue / maxRev) * 125)
+        : 160;
       const formattedVal =
-        day.totalRevenue >= 1000
-          ? `₹${(day.totalRevenue / 1000).toFixed(1)}k`
-          : `₹${day.totalRevenue.toLocaleString('en-IN')}`;
-      return { x, y, val: formattedVal, rawVal: day.totalRevenue, label: day.label };
+        bucket.totalRevenue >= 1000
+          ? `₹${(bucket.totalRevenue / 1000).toFixed(1)}k`
+          : `₹${bucket.totalRevenue.toLocaleString('en-IN')}`;
+      return { x, y, val: formattedVal, rawVal: bucket.totalRevenue, label: bucket.label };
     });
 
     let pathD = `M ${points[0].x} ${points[0].y}`;
@@ -422,9 +455,9 @@ export default function SellerAdminDashboard() {
       pathD += ` C ${cpx1} ${cpy1}, ${cpx2} ${cpy2}, ${curr.x} ${curr.y}`;
     }
 
-    const areaD = `${pathD} L 700 180 L 0 180 Z`;
+    const areaD = `${pathD} L ${points[points.length - 1].x} 175 L ${points[0].x} 175 Z`;
 
-    return { points, pathD, areaD, hasData, maxRev };
+    return { points, pathD, areaD, hasData, maxRev, paddingX };
   };
 
   // Dynamic Category Revenue Share Math
@@ -741,32 +774,63 @@ export default function SellerAdminDashboard() {
                           <BarChart3 className="h-5 w-5 text-[#e5c178]" />
                           <span>Platform Revenue & AI Buyer Growth Velocity</span>
                         </h2>
-                        <p className="text-xs text-zinc-400">Daily dynamic GMV trajectory and AI buyer transaction throughput on Razorpay Test API.</p>
+                        <p className="text-xs text-zinc-400">
+                          {chartTimeframe === '7d' && 'Daily GMV trajectory over the last 7 days.'}
+                          {chartTimeframe === '30d' && 'Aggregated GMV velocity over the last 30 days.'}
+                          {chartTimeframe === 'quarter' && 'Quarterly 90-day GMV trajectory & buyer throughput.'}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2 bg-zinc-950 p-1 rounded-xl border border-zinc-800">
-                        <button className="px-3 py-1 text-[11px] font-semibold rounded-lg bg-zinc-900 text-[#e5c178] border border-[#e5c178]/30">7 Days</button>
-                        <button className="px-3 py-1 text-[11px] font-semibold text-zinc-500 hover:text-zinc-300">30 Days</button>
-                        <button className="px-3 py-1 text-[11px] font-semibold text-zinc-500 hover:text-zinc-300">Quarter</button>
+                      <div className="flex items-center gap-1.5 bg-zinc-950 p-1.5 rounded-xl border border-zinc-800">
+                        <button
+                          onClick={() => setChartTimeframe('7d')}
+                          className={`px-3 py-1 text-[11px] font-semibold rounded-lg transition-all ${
+                            chartTimeframe === '7d'
+                              ? 'bg-zinc-900 text-[#e5c178] border border-[#e5c178]/30 shadow'
+                              : 'text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          7 Days
+                        </button>
+                        <button
+                          onClick={() => setChartTimeframe('30d')}
+                          className={`px-3 py-1 text-[11px] font-semibold rounded-lg transition-all ${
+                            chartTimeframe === '30d'
+                              ? 'bg-zinc-900 text-[#e5c178] border border-[#e5c178]/30 shadow'
+                              : 'text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          30 Days
+                        </button>
+                        <button
+                          onClick={() => setChartTimeframe('quarter')}
+                          className={`px-3 py-1 text-[11px] font-semibold rounded-lg transition-all ${
+                            chartTimeframe === 'quarter'
+                              ? 'bg-zinc-900 text-[#e5c178] border border-[#e5c178]/30 shadow'
+                              : 'text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          Quarter
+                        </button>
                       </div>
                     </div>
 
                     {(() => {
-                      const chartData = getDynamic7DayChartData();
+                      const chartData = getDynamicChartData();
                       return (
                         <div className="space-y-4">
-                          <div className="h-60 w-full relative">
+                          <div className="h-52 w-full relative px-2">
                             <svg className="w-full h-full overflow-visible" viewBox="0 0 700 200" preserveAspectRatio="none">
                               <defs>
                                 <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#e5c178" stopOpacity="0.4" />
+                                  <stop offset="0%" stopColor="#e5c178" stopOpacity="0.35" />
                                   <stop offset="100%" stopColor="#e5c178" stopOpacity="0.0" />
                                 </linearGradient>
                               </defs>
 
-                              <line x1="0" y1="40" x2="700" y2="40" stroke="#27272a" strokeDasharray="4 4" strokeWidth="1" />
-                              <line x1="0" y1="90" x2="700" y2="90" stroke="#27272a" strokeDasharray="4 4" strokeWidth="1" />
-                              <line x1="0" y1="140" x2="700" y2="140" stroke="#27272a" strokeDasharray="4 4" strokeWidth="1" />
-                              <line x1="0" y1="180" x2="700" y2="180" stroke="#27272a" strokeWidth="1" />
+                              <line x1={chartData.paddingX} y1="35" x2={700 - chartData.paddingX} y2="35" stroke="#27272a" strokeDasharray="4 4" strokeWidth="1" />
+                              <line x1={chartData.paddingX} y1="80" x2={700 - chartData.paddingX} y2="80" stroke="#27272a" strokeDasharray="4 4" strokeWidth="1" />
+                              <line x1={chartData.paddingX} y1="125" x2={700 - chartData.paddingX} y2="125" stroke="#27272a" strokeDasharray="4 4" strokeWidth="1" />
+                              <line x1={chartData.paddingX} y1="165" x2={700 - chartData.paddingX} y2="165" stroke="#27272a" strokeWidth="1" />
 
                               <path d={chartData.areaD} fill="url(#goldGradient)" />
 
@@ -781,7 +845,7 @@ export default function SellerAdminDashboard() {
                               {chartData.points.map((pt, i) => (
                                 <g key={i}>
                                   <circle cx={pt.x} cy={pt.y} r="5" fill="#09090d" stroke="#e5c178" strokeWidth="3" />
-                                  <text x={pt.x} y={pt.y - 10} textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold" fontFamily="monospace">
+                                  <text x={pt.x} y={pt.y - 12} textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold" fontFamily="monospace">
                                     {pt.val}
                                   </text>
                                 </g>
@@ -789,7 +853,7 @@ export default function SellerAdminDashboard() {
                             </svg>
                           </div>
 
-                          <div className="flex items-center justify-between text-xs font-mono text-zinc-500 pt-2 border-t border-zinc-900">
+                          <div className="flex items-center justify-between text-xs font-mono text-zinc-500 pt-2 border-t border-zinc-900 px-4">
                             {chartData.points.map((pt, idx) => (
                               <span key={idx} className={idx === chartData.points.length - 1 ? 'text-[#e5c178] font-bold' : ''}>
                                 {pt.label}
