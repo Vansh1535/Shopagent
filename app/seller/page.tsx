@@ -337,9 +337,16 @@ export default function SellerAdminDashboard() {
   const totalProducts = products.length;
   const aiReadyProducts = products.filter((p) => p.is_ai_ready).length;
 
+  // Helper to ensure 100% metric consistency across KPI Card, Chart, & Category Share
+  const getValidOrders = () => {
+    const paid = orders.filter((o) => o.status === 'paid');
+    return paid.length > 0 ? paid : orders;
+  };
+
   // Dynamic GMV Growth Calculation (comparing recent orders)
   const getDynamicGmvGrowth = () => {
-    if (orders.length === 0) return { pctStr: '0.0%', isPositive: true };
+    const targetOrders = getValidOrders();
+    if (targetOrders.length === 0) return { pctStr: '0.0%', isPositive: true };
 
     const now = Date.now();
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
@@ -347,7 +354,7 @@ export default function SellerAdminDashboard() {
     let recentRev = 0;
     let prevRev = 0;
 
-    orders.forEach((o) => {
+    targetOrders.forEach((o) => {
       if (o.created_at) {
         const orderTime = new Date(o.created_at).getTime();
         const age = now - orderTime;
@@ -413,7 +420,8 @@ export default function SellerAdminDashboard() {
     }
 
     // Pure Database Timestamp Matching
-    orders.forEach((o) => {
+    const targetOrders = getValidOrders();
+    targetOrders.forEach((o) => {
       if (o.created_at) {
         const orderTime = new Date(o.created_at).getTime();
         const bucket = buckets.find((b) => orderTime >= b.startMs && orderTime <= b.endMs);
@@ -463,9 +471,10 @@ export default function SellerAdminDashboard() {
   // Dynamic Category Revenue Share Math
   const getDynamicCategoryShare = () => {
     const categoryTotals: Record<string, { revenue: number; orderCount: number }> = {};
+    const targetOrders = getValidOrders();
 
-    if (orders.length > 0) {
-      orders.forEach((o) => {
+    if (targetOrders.length > 0) {
+      targetOrders.forEach((o) => {
         if (o.items && Array.isArray(o.items)) {
           o.items.forEach((item) => {
             const prod = products.find((p) => p.id === item.product_id);
