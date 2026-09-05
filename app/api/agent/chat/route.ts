@@ -5,7 +5,7 @@ import { db } from '@/lib/db';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { query, simulatedFailure } = body;
+    const { query, simulatedFailure, buyerAgentBudget } = body;
 
     if (!query) {
       return NextResponse.json(
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const history = await db.getMessages();
 
     // Process message through agent NLU and tool execution engine
-    const response = await processBuyerMessage(query, history, simulatedFailure);
+    const response = await processBuyerMessage(query, history, simulatedFailure, buyerAgentBudget || 5000);
 
     return NextResponse.json({
       success: true,

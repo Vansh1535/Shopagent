@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS public.agent_actions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Row Level Security (RLS) Enablement
+-- Enable Row Level Security (RLS) on all tables
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agent_products ENABLE ROW LEVEL SECURITY;
@@ -157,6 +157,37 @@ ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agent_actions ENABLE ROW LEVEL SECURITY;
 
--- Public read access for products and agent_products (for buyers)
-CREATE POLICY "Public read products" ON public.products FOR SELECT USING (true);
-CREATE POLICY "Public read agent_products" ON public.agent_products FOR SELECT USING (true);
+-- Drop restrictive policies if existing
+DROP POLICY IF EXISTS "Public read products" ON public.products;
+DROP POLICY IF EXISTS "Public read agent_products" ON public.agent_products;
+
+-- Create Permissive RLS Policies for Anon & Service Role (E-Commerce Agent App Access)
+CREATE POLICY "Allow all access on profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access on products" ON public.products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access on agent_products" ON public.agent_products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access on commerce_policies" ON public.commerce_policies FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access on carts" ON public.carts FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access on cart_items" ON public.cart_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access on orders" ON public.orders FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access on order_items" ON public.order_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access on payments" ON public.payments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access on conversations" ON public.conversations FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access on messages" ON public.messages FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access on agent_actions" ON public.agent_actions FOR ALL USING (true) WITH CHECK (true);
+
+-- 13. Initial Seed Data Insertion for Supabase Database
+INSERT INTO public.profiles (id, role, name) VALUES
+('11111111-1111-1111-1111-111111111111', 'seller', 'Bharat Tech Merchants'),
+('22222222-2222-2222-2222-222222222222', 'buyer', 'Rajesh Kumar')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.commerce_policies (seller_id, max_discount, max_quantity_per_order, require_confirmation, max_auto_order_value, allow_ai_recommendations) VALUES
+('11111111-1111-1111-1111-111111111111', 15.0, 10, true, 10000.0, true)
+ON CONFLICT (seller_id) DO NOTHING;
+
+INSERT INTO public.products (id, seller_id, name, description, category, price, stock, image_url, features) VALUES
+('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '11111111-1111-1111-1111-111111111111', 'JBL Tune 770NC Wireless ANC Headphones', 'Adaptive Noise Cancelling with Smart Ambient, 70H battery life, Speed Charge, Multi-Point Connection', 'Headphones', 5999, 15, 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=60', '["Adaptive Noise Cancelling", "70 Hours Battery", "Bluetooth 5.3", "Fast Charging"]'::jsonb),
+('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', '11111111-1111-1111-1111-111111111111', 'Logitech G304 LIGHTSPEED Wireless Gaming Mouse', 'HERO Sensor 12,000 DPI, 250h battery life, 99g ultra-lightweight, 6 programmable buttons', 'Gaming', 2795, 25, 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=800&auto=format&fit=crop&q=60', '["12,000 DPI HERO Sensor", "250h Battery", "99g Lightweight", "6 Programmable Buttons"]'::jsonb),
+('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', '11111111-1111-1111-1111-111111111111', 'Keychron K2 V2 Wireless Mechanical Keyboard', '75% Layout, Tactile Gateron Brown Switches, RGB Backlit, Mac & Windows compatible', 'Keyboards', 6999, 8, 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800&auto=format&fit=crop&q=60', '["Wireless & Wired", "Gateron Brown Switches", "RGB Backlight", "4000mAh Battery"]'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+

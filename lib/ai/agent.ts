@@ -17,7 +17,8 @@ export interface AgentChatResponse {
 export async function processBuyerMessage(
   userQuery: string,
   currentHistory: ChatMessage[],
-  simulatedFailure?: 'OUT_OF_STOCK' | 'PRICE_CHANGED' | 'PAYMENT_FAILED'
+  simulatedFailure?: 'OUT_OF_STOCK' | 'PRICE_CHANGED' | 'PAYMENT_FAILED',
+  buyerAgentBudget: number = 5000
 ): Promise<AgentChatResponse> {
   const queryLower = userQuery.toLowerCase();
 
@@ -240,8 +241,84 @@ export async function processBuyerMessage(
     queryLower.includes('खरीद') ||
     queryLower.includes('ले लो');
 
-  if (isBuyIntent && searchResults.length > 0) {
-    const targetProduct = searchResults[0];
+  if (isBuyIntent && (searchResults.length > 0 || lastRecs.length > 0)) {
+    let targetProduct = searchResults[0];
+
+    // Resolve target product from multi-turn context (e.g. "cosmic byte wala le lo", "han yah wala le lo", "buy first one")
+    if (lastRecs.length > 0) {
+      const brandMatch = lastRecs.find((p) => {
+        const pName = p.name.toLowerCase();
+        const words = pName.split(/\s+/);
+        return words.some((w) => w.length >= 3 && queryLower.includes(w));
+      });
+
+      if (brandMatch) {
+        targetProduct = brandMatch;
+      } else if (
+        queryLower.includes('pehla') ||
+        queryLower.includes('first') ||
+        queryLower.includes('le lo') ||
+        queryLower.includes('lelo') ||
+        queryLower.includes('ye wala') ||
+        queryLower.includes('yah wala') ||
+        queryLower.includes('this one') ||
+        queryLower.includes('buy this') ||
+        queryLower.includes('han') ||
+        queryLower.includes('yes')
+      ) {
+        targetProduct = lastRecs[0];
+      } else if (queryLower.includes('dusra') || queryLower.includes('second')) {
+        if (lastRecs[1]) targetProduct = lastRecs[1];
+      }
+    }
+
+    if (!targetProduct) {
+      targetProduct = searchResults[0] || lastRecs[0];
+    }
+
+    // ENFORCE BUYER AGENT BUDGET CEILING
+    if (targetProduct && targetProduct.price > buyerAgentBudget) {
+      await db.logAgentAction({
+        action_type: 'AGENT_BUDGET_EXCEEDED',
+        input: {
+          product: targetProduct.name,
+          product_price: targetProduct.price,
+          buyer_budget: buyerAgentBudget,
+        },
+        status: 'POLICY_REJECTED',
+        reason: `Product price ₹${targetProduct.price} exceeds buyer agent auto-purchase budget limit of ₹${buyerAgentBudget}`,
+      });
+
+      const isHinglish =
+        /[\u0900-\u097F]/.test(userQuery) ||
+        queryLower.includes('le lo') ||
+        queryLower.includes('yah wala') ||
+        queryLower.includes('hai');
+
+      const budgetContent = isHinglish
+        ? `⚠️ **Agent Budget Exceeded Alert**: **${targetProduct.name}** ki price **₹${targetProduct.price.toLocaleString('en-IN')}** hai, jo aapke Agent Budget limit (**₹${buyerAgentBudget.toLocaleString('en-IN')}**) se zyada hai.\n\n` +
+          `Aap kya karna chahenge?\n` +
+          `1. **Increase Agent Budget**: Profile Settings me budget update karein.\n` +
+          `2. **Lower Price Products**: ₹${buyerAgentBudget.toLocaleString('en-IN')} ke andar alternatives search karein.`
+        : `⚠️ **Agent Budget Exceeded Alert**: **${targetProduct.name}** costs **₹${targetProduct.price.toLocaleString('en-IN')}**, which exceeds your AI Agent Budget limit of **₹${buyerAgentBudget.toLocaleString('en-IN')}**.\n\n` +
+          `Would you like to:\n` +
+          `1. **Increase your agent budget** in Profile settings.\n` +
+          `2. **Seek lower-priced products** within your ₹${buyerAgentBudget.toLocaleString('en-IN')} budget.`;
+
+      const msg = await db.addMessage({
+        role: 'assistant',
+        content: budgetContent,
+        metadata: {
+          recommended_products: [targetProduct],
+          over_budget: true,
+          buyer_budget: buyerAgentBudget,
+          required_budget: targetProduct.price,
+          target_product: targetProduct,
+        },
+      });
+
+      return { message: msg, recommendedProducts: [targetProduct] };
+    }
 
     // Handle Natural Scenario 1: Out of Stock
     if (targetProduct.stock === 0 || simulatedFailure === 'OUT_OF_STOCK') {
@@ -281,9 +358,28 @@ export async function processBuyerMessage(
       return { message: msg, recommendedProducts: alternatives.slice(0, 2) };
     }
 
-    // Handle Natural Scenario 2: Price Changed Alert
-    const hasPriceChanged = targetProduct.original_price && targetProduct.original_price !== targetProduct.price;
-    if (hasPriceChanged || simulatedFailure === 'PRICE_CHANGED') {
+    // Check if buyer has already been presented with & confirmed the price update in previous turn
+    const lastAssistantMsg = currentHistory.filter((m) => m.role === 'assistant').pop();
+    const wasPriceAlertConfirmed =
+      lastAssistantMsg?.metadata?.failure_type === 'PRICE_CHANGED' &&
+      (queryLower.includes('theek') ||
+        queryLower.includes('ok') ||
+        queryLower.includes('yes') ||
+        queryLower.includes('han') ||
+        queryLower.includes('ha') ||
+        queryLower.includes('le lo') ||
+        queryLower.includes('lelo') ||
+        queryLower.includes('confirm') ||
+        queryLower.includes('buy') ||
+        queryLower.includes('proceed'));
+
+    // Handle Natural Scenario 2: Price Changed Alert (Triggered ONCE until buyer confirms)
+    const hasPriceChanged =
+      !wasPriceAlertConfirmed &&
+      (simulatedFailure === 'PRICE_CHANGED' ||
+        (targetProduct.original_price && targetProduct.original_price !== targetProduct.price));
+
+    if (hasPriceChanged) {
       const oldPrice = targetProduct.original_price || (targetProduct.price - 300);
       const updatedPrice = targetProduct.price;
 

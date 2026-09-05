@@ -28,7 +28,7 @@ import Navbar from '@/components/Navbar';
 import CustomAlertModal, { AlertState } from '@/components/CustomAlertModal';
 
 export default function PlatformAdminConsole() {
-  const [activeTab, setActiveTab] = useState<'audit' | 'synthetic' | 'policy' | 'analytics'>('audit');
+  const [activeTab, setActiveTab] = useState<'audit' | 'synthetic' | 'policy'>('audit');
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [auditActions, setAuditActions] = useState<AgentAction[]>([]);
@@ -184,21 +184,6 @@ export default function PlatformAdminConsole() {
               <ShieldCheck className="h-4 w-4" />
               <span>Global Policy Gates</span>
             </button>
-
-            <button
-              onClick={() => {
-                setActiveTab('analytics');
-                fetchAllAdminData();
-              }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                activeTab === 'analytics'
-                  ? 'bg-zinc-900 text-[#e5c178] border border-[#e5c178]/30 shadow-md'
-                  : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-200'
-              }`}
-            >
-              <Activity className="h-4 w-4" />
-              <span>Platform Analytics</span>
-            </button>
           </nav>
         </div>
 
@@ -218,7 +203,6 @@ export default function PlatformAdminConsole() {
               {activeTab === 'audit' && <span>Immutable <span className="serif-gold text-2xl font-normal">Money & Policy Audit Trail</span></span>}
               {activeTab === 'synthetic' && <span>Dynamic <span className="serif-gold text-2xl font-normal">Synthetic Data Flow Engine</span></span>}
               {activeTab === 'policy' && <span>Global <span className="serif-gold text-2xl font-normal">Governance Policy Gates</span></span>}
-              {activeTab === 'analytics' && <span>Platform <span className="serif-gold text-2xl font-normal">Commerce Metrics</span></span>}
             </h1>
             <p className="text-xs text-zinc-400">
               Platform administration, audit logging, policy oversight, and synthetic traffic generation.
@@ -226,14 +210,9 @@ export default function PlatformAdminConsole() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => handleSyntheticAction('generate_products', 5)}
-              disabled={isGenerating}
-              className="btn-ivory rounded-full px-4 py-2 text-xs font-bold inline-flex items-center gap-1.5 shadow-lg cursor-pointer disabled:opacity-50"
-            >
-              <Sparkles className="h-4 w-4" />
-              <span>{isGenerating ? 'Generating...' : '+ Generate Synthetic Data'}</span>
-            </button>
+            <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+              AUDIT ACTIVE
+            </span>
           </div>
         </header>
 
@@ -486,48 +465,7 @@ export default function PlatformAdminConsole() {
             </div>
           )}
 
-          {/* TAB 4: PLATFORM ANALYTICS */}
-          {activeTab === 'analytics' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="rounded-2xl border border-zinc-800/80 bg-[#09090d] p-5 space-y-2">
-                  <div className="flex items-center justify-between text-zinc-500 font-mono text-[10px] uppercase tracking-wider">
-                    <span>Platform GMV (Paid)</span>
-                    <TrendingUp className="h-4 w-4 text-[#e5c178]" />
-                  </div>
-                  <div className="text-3xl font-extrabold text-white">₹{stats.totalRevenue.toLocaleString('en-IN')}</div>
-                  <div className="text-[11px] text-[#e5c178] font-medium">Computed dynamically from DB orders</div>
-                </div>
 
-                <div className="rounded-2xl border border-zinc-800/80 bg-[#09090d] p-5 space-y-2">
-                  <div className="flex items-center justify-between text-zinc-500 font-mono text-[10px] uppercase tracking-wider">
-                    <span>Total Orders Processed</span>
-                    <CreditCard className="h-4 w-4 text-[#e5c178]" />
-                  </div>
-                  <div className="text-3xl font-extrabold text-white">{stats.activeOrdersCount}</div>
-                  <div className="text-[11px] text-zinc-400 font-medium">100% server verified</div>
-                </div>
-
-                <div className="rounded-2xl border border-[#e5c178]/30 bg-[#0e0c08] p-5 space-y-2">
-                  <div className="flex items-center justify-between text-[#e5c178] font-mono text-[10px] uppercase tracking-wider">
-                    <span>Active Products</span>
-                    <Zap className="h-4 w-4 text-[#e5c178]" />
-                  </div>
-                  <div className="text-3xl font-extrabold text-[#e5c178]">{aiReadyProducts} / {totalProducts}</div>
-                  <div className="text-[11px] text-[#e5c178]/80 font-medium">AI-Normalized catalog items</div>
-                </div>
-
-                <div className="rounded-2xl border border-zinc-800/80 bg-[#09090d] p-5 space-y-2">
-                  <div className="flex items-center justify-between text-zinc-500 font-mono text-[10px] uppercase tracking-wider">
-                    <span>Avg Order Value</span>
-                    <Activity className="h-4 w-4 text-[#e5c178]" />
-                  </div>
-                  <div className="text-3xl font-extrabold text-white">₹{stats.avgOrderValue.toLocaleString('en-IN')}</div>
-                  <div className="text-[11px] text-zinc-400 font-medium">Dynamic metric</div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </main>
     </div>

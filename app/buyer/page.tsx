@@ -15,7 +15,14 @@ import {
   Plus,
   MessageSquare,
   History,
-  Trash2
+  Trash2,
+  Sliders,
+  ShieldAlert,
+  Search,
+  User,
+  Settings,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 import { ChatMessage, Product } from '@/lib/types';
 import AuthGuard from '@/components/AuthGuard';
@@ -62,11 +69,29 @@ export default function BuyerAIWorkspace() {
   const [cartItems, setCartItems] = useState<Array<{ product: Product; quantity: number }>>([]);
   const [showCartDrawer, setShowCartDrawer] = useState(false);
 
+  // Buyer Agent Governance Profile & UI state
+  const [buyerBudget, setBuyerBudget] = useState<number>(5000);
+  const [autoConfirmThreshold, setAutoConfirmThreshold] = useState<number>(2000);
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load chat sessions from localStorage on mount
+  // Load chat sessions & buyer agent budget from localStorage on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    const savedBudget = localStorage.getItem('buyer_agent_budget');
+    if (savedBudget) {
+      const parsed = parseFloat(savedBudget);
+      if (!isNaN(parsed)) setBuyerBudget(parsed);
+    }
+
+    const savedThreshold = localStorage.getItem('buyer_auto_confirm');
+    if (savedThreshold) {
+      const parsed = parseFloat(savedThreshold);
+      if (!isNaN(parsed)) setAutoConfirmThreshold(parsed);
+    }
     const saved = localStorage.getItem('buyer_chat_sessions');
     if (saved) {
       try {
@@ -128,6 +153,44 @@ export default function BuyerAIWorkspace() {
       return updated;
     });
   };
+
+  const handleAddToCart = (product: Product) => {
+    setCartItems((prev) => {
+      const existingIndex = prev.findIndex((item) => item.product.id === product.id);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + 1,
+        };
+        return updated;
+      } else {
+        return [...prev, { product, quantity: 1 }];
+      }
+    });
+    setShowCartDrawer(true);
+  };
+
+  const handleUpdateCartQuantity = (productId: string, delta: number) => {
+    setCartItems((prev) =>
+      prev
+        .map((item) => {
+          if (item.product.id === productId) {
+            const newQty = item.quantity + delta;
+            return newQty > 0 ? { ...item, quantity: newQty } : null;
+          }
+          return item;
+        })
+        .filter(Boolean) as Array<{ product: Product; quantity: number }>
+    );
+  };
+
+  const handleRemoveFromCart = (productId: string) => {
+    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
+  };
+
+  const totalCartCount = cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
+  const totalCartPrice = cartItems.reduce((acc, curr) => acc + curr.product.price * curr.quantity, 0);
 
   const handleNewChat = () => {
     const newSession: ChatSession = {
@@ -284,6 +347,7 @@ export default function BuyerAIWorkspace() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: textToSend,
+          buyerAgentBudget: buyerBudget,
         }),
       });
 
@@ -294,7 +358,10 @@ export default function BuyerAIWorkspace() {
 
         if (data.recommendedProducts && data.recommendedProducts.length > 0) {
           const rec = data.recommendedProducts[0];
-          setCartItems([{ product: rec, quantity: 1 }]);
+          setCartItems((prev) => {
+            if (prev.some((item) => item.product.id === rec.id)) return prev;
+            return [...prev, { product: rec, quantity: 1 }];
+          });
         }
       }
     } catch (e) {
@@ -406,56 +473,112 @@ export default function BuyerAIWorkspace() {
 
   return (
     <AuthGuard allowedRoles={['buyer']}>
-      <div className="min-h-screen bg-pitch-black text-zinc-100 flex flex-col font-sans">
+      <div className="h-screen bg-pitch-black text-zinc-100 flex flex-col font-sans overflow-hidden">
         <Navbar />
-        <div className="flex flex-1 h-[calc(100vh-61px)] overflow-hidden">
-          {/* Sidebar */}
-          <aside className="w-72 border-r border-zinc-800/60 bg-[#07070a] flex flex-col justify-between p-4 shrink-0 hidden md:flex">
-            <div className="space-y-4">
+        <div className="flex flex-1 overflow-hidden relative">
+          {/* Collapsible Sidebar */}
+          <aside className={`border-r border-zinc-800/60 bg-[#07070a] flex flex-col justify-between shrink-0 transition-all duration-300 ${
+            isSidebarCollapsed ? 'w-16 p-2.5 items-center' : 'w-72 p-4'
+          } hidden md:flex h-full overflow-hidden`}>
+            <div className="space-y-3 w-full">
+              {/* Sidebar Header & Collapse Toggle */}
+              <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} pb-1`}>
+                {!isSidebarCollapsed && (
+                  <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <Bot className="h-3.5 w-3.5 text-[#e5c178]" />
+                    BUYER CONTROLS
+                  </span>
+                )}
+                <button
+                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                  aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                  title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                  className="p-1.5 rounded-xl border border-zinc-800 bg-[#09090d] text-zinc-400 hover:text-white hover:border-[#e5c178] transition-all cursor-pointer"
+                >
+                  {isSidebarCollapsed ? (
+                    <PanelLeftOpen className="h-4 w-4 text-[#e5c178]" />
+                  ) : (
+                    <PanelLeftClose className="h-4 w-4 text-[#e5c178]" />
+                  )}
+                </button>
+              </div>
+
+              {/* Agent Profile & Budget Button (ACCESSIBLE AT TOP) */}
+              <button
+                onClick={() => setShowProfileModal(true)}
+                aria-label={`Agent Profile & Budget settings. Current limit ₹${buyerBudget.toLocaleString('en-IN')}`}
+                title={`Agent Profile & Budget Settings (Limit: ₹${buyerBudget.toLocaleString('en-IN')})`}
+                className={`w-full flex items-center ${
+                  isSidebarCollapsed ? 'justify-center p-2.5' : 'justify-between p-3'
+                } rounded-xl border border-[#e5c178]/30 bg-[#e5c178]/10 text-xs text-white hover:bg-[#e5c178]/20 transition-all cursor-pointer shadow-md`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Sliders className="h-4 w-4 text-[#e5c178] shrink-0" />
+                  {!isSidebarCollapsed && <span className="font-bold text-white">Agent Profile</span>}
+                </div>
+                {!isSidebarCollapsed && (
+                  <span className="font-mono text-[10px] font-bold text-[#e5c178] bg-zinc-950 px-2 py-0.5 rounded border border-[#e5c178]/40">
+                    ₹{buyerBudget.toLocaleString('en-IN')}
+                  </span>
+                )}
+              </button>
+
               {/* New Chat Button */}
               <button
                 onClick={handleNewChat}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#e5c178] hover:bg-[#d4b067] text-zinc-950 font-bold px-4 py-2.5 text-xs transition-all shadow-md active:scale-95"
+                aria-label="Start new chat session"
+                title="New Chat Session"
+                className={`w-full flex items-center justify-center gap-2 rounded-xl bg-[#e5c178] hover:bg-[#d4b067] text-zinc-950 font-bold ${
+                  isSidebarCollapsed ? 'p-2.5' : 'px-4 py-2.5 text-xs'
+                } transition-all shadow-md active:scale-95 cursor-pointer`}
               >
-                <Plus className="h-4 w-4 stroke-[3]" />
-                <span>New Chat</span>
+                <Plus className="h-4 w-4 stroke-[3] shrink-0" />
+                {!isSidebarCollapsed && <span>New Chat</span>}
               </button>
 
               {/* Chat History Section */}
               <div className="space-y-2 pt-2">
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <History className="h-3 w-3 text-[#e5c178]" />
-                    Chat History
-                  </span>
-                  <span className="text-[10px] font-mono text-zinc-500">({sessions.length})</span>
-                </div>
+                {!isSidebarCollapsed && (
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <History className="h-3 w-3 text-[#e5c178]" />
+                      History
+                    </span>
+                    <span className="text-[10px] font-mono text-zinc-500">({sessions.length})</span>
+                  </div>
+                )}
 
-                <div className="space-y-1.5 max-h-[calc(100vh-250px)] overflow-y-auto pr-1 custom-scrollbar">
+                <div className="space-y-1.5 max-h-[calc(100vh-320px)] overflow-y-auto pr-1 custom-scrollbar">
                   {sessions.map((session) => {
                     const isActive = session.id === activeSessionId;
                     return (
                       <div
                         key={session.id}
                         onClick={() => handleSelectSession(session.id)}
-                        className={`group relative flex items-center justify-between rounded-xl p-3 text-xs cursor-pointer border transition-all ${
+                        title={session.title || 'Shopping Chat'}
+                        className={`group relative flex items-center ${
+                          isSidebarCollapsed ? 'justify-center p-2.5' : 'justify-between p-3'
+                        } rounded-xl text-xs cursor-pointer border transition-all ${
                           isActive
                             ? 'border-[#e5c178]/50 bg-[#e5c178]/10 text-white font-medium shadow-sm'
                             : 'border-zinc-800/60 bg-[#09090d] text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
                         }`}
                       >
-                        <div className="flex items-center gap-2 overflow-hidden pr-6">
+                        <div className="flex items-center gap-2 overflow-hidden pr-2">
                           <MessageSquare className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-[#e5c178]' : 'text-zinc-500'}`} />
-                          <span className="truncate text-xs">{session.title || 'Shopping Chat'}</span>
+                          {!isSidebarCollapsed && <span className="truncate text-xs">{session.title || 'Shopping Chat'}</span>}
                         </div>
 
-                        <button
-                          onClick={(e) => handleDeleteSession(e, session.id)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-zinc-500 transition-opacity absolute right-2"
-                          title="Delete Chat"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {!isSidebarCollapsed && (
+                          <button
+                            onClick={(e) => handleDeleteSession(e, session.id)}
+                            aria-label={`Delete chat ${session.title}`}
+                            title="Delete Chat"
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-zinc-500 transition-opacity absolute right-2"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -463,17 +586,23 @@ export default function BuyerAIWorkspace() {
               </div>
             </div>
 
-            <div className="border-t border-zinc-800/80 pt-4">
-              <div className="text-[10px] text-center font-mono text-zinc-500 uppercase tracking-wider">
-                RAZORPAY TEST API • VOICE STT
-              </div>
+            <div className="w-full border-t border-zinc-800/80 pt-3">
+              {!isSidebarCollapsed ? (
+                <div className="text-[10px] text-center font-mono text-zinc-500 uppercase tracking-wider">
+                  RAZORPAY TEST API • VOICE STT
+                </div>
+              ) : (
+                <div className="flex justify-center text-[#e5c178]">
+                  <Bot className="h-4 w-4" />
+                </div>
+              )}
             </div>
           </aside>
 
-          {/* Main Workspace */}
-          <main className="flex-1 flex flex-col justify-between overflow-hidden">
+          {/* Main Workspace (Independent Scrollable Chat Area) */}
+          <main className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
             {/* Top Header */}
-            <header className="border-b border-zinc-800/60 bg-[#050507]/90 backdrop-blur-md px-8 py-4 flex items-center justify-between shrink-0">
+            <header className="border-b border-zinc-800/60 bg-[#050507]/90 backdrop-blur-md px-6 py-3.5 flex items-center justify-between shrink-0 z-10">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e5c178]/10 text-[#e5c178] border border-[#e5c178]/20">
                   <Bot className="h-5 w-5" />
@@ -487,16 +616,39 @@ export default function BuyerAIWorkspace() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
-                {cartItems.length > 0 && (
-                  <button
-                    onClick={() => setShowCartDrawer(true)}
-                    className="btn-ivory rounded-xl px-4 py-2 text-xs font-semibold inline-flex items-center gap-2 shadow-lg"
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowProfileModal(true)}
+                  className="rounded-xl border border-zinc-800 bg-[#09090d] px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:border-[#e5c178] hover:text-white transition-all inline-flex items-center gap-2 shadow-md cursor-pointer"
+                  title="Buyer Agent Governance & Profile Settings"
+                >
+                  <Sliders className="h-4 w-4 text-[#e5c178]" />
+                  <span>Agent Profile</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-[#e5c178]/10 text-[#e5c178] border border-[#e5c178]/30">
+                    Limit: ₹{buyerBudget.toLocaleString('en-IN')}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setShowCartDrawer(true)}
+                  className={`rounded-xl px-4 py-2 text-xs font-semibold inline-flex items-center gap-2 transition-all cursor-pointer shadow-lg border ${
+                    totalCartCount > 0
+                      ? 'btn-ivory border-[#e5c178]'
+                      : 'border-zinc-800 bg-[#09090d] text-zinc-300 hover:border-[#e5c178] hover:text-white'
+                  }`}
+                >
+                  <ShoppingBag className="h-4 w-4 text-[#e5c178]" />
+                  <span>View Cart</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                      totalCartCount > 0
+                        ? 'bg-zinc-950 text-[#e5c178] border border-[#e5c178]/40'
+                        : 'bg-zinc-800 text-zinc-400'
+                    }`}
                   >
-                    <ShoppingBag className="h-4 w-4" />
-                    <span>Cart ({cartItems.length})</span>
-                  </button>
-                )}
+                    {totalCartCount} {totalCartCount === 1 ? 'item' : 'items'}
+                  </span>
+                </button>
               </div>
             </header>
 
@@ -524,6 +676,71 @@ export default function BuyerAIWorkspace() {
                   >
                     <FormattedMarkdown content={msg.content} />
                   </div>
+
+                  {/* Interactive Over-Budget Alert Card */}
+                  {msg.metadata?.over_budget && (
+                    <div className="rounded-2xl border border-amber-500/50 bg-[#0e0c07] p-5 space-y-4 shadow-2xl animate-in fade-in">
+                      <div className="flex items-center justify-between border-b border-amber-500/20 pb-3">
+                        <div className="flex items-center gap-2">
+                          <ShieldAlert className="h-5 w-5 text-amber-400" />
+                          <span className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">
+                            AI Agent Budget Limit Exceeded
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30 font-bold">
+                          Budget Gate
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center justify-between text-zinc-300">
+                          <span>Item Requested:</span>
+                          <span className="font-bold text-white max-w-[200px] truncate">{msg.metadata.target_product?.name || msg.metadata.recommended_products?.[0]?.name}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-zinc-300">
+                          <span>Product Price:</span>
+                          <span className="font-bold text-white font-mono">₹{msg.metadata.required_budget?.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-zinc-300">
+                          <span>Your Current Agent Budget Limit:</span>
+                          <span className="font-bold text-amber-400 font-mono">₹{msg.metadata.buyer_budget?.toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                        <button
+                          onClick={() => {
+                            const needed = msg.metadata!.required_budget || 10000;
+                            setBuyerBudget(needed);
+                            if (typeof window !== 'undefined') {
+                              localStorage.setItem('buyer_agent_budget', needed.toString());
+                            }
+                            setCustomAlert({
+                              isOpen: true,
+                              title: 'Agent Budget Increased',
+                              message: `Your AI Agent budget limit has been increased to ₹${needed.toLocaleString('en-IN')}. Retrying purchase...`,
+                              type: 'success',
+                            });
+                            handleSendMessage(`Buy ${msg.metadata!.target_product?.name || msg.metadata!.recommended_products?.[0]?.name || 'this item'}`);
+                          }}
+                          className="btn-ivory rounded-xl py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+                        >
+                          <Zap className="h-4 w-4 text-zinc-950" />
+                          <span>⚡ Increase Budget to ₹{msg.metadata.required_budget?.toLocaleString('en-IN')} & Buy</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            handleSendMessage(`Show me top alternative products under ₹${msg.metadata!.buyer_budget}`);
+                          }}
+                          className="rounded-xl border border-zinc-800 bg-zinc-900 py-2.5 text-xs font-semibold text-zinc-200 hover:border-[#e5c178] hover:text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Search className="h-4 w-4 text-[#e5c178]" />
+                          <span>🔍 Search Products Under ₹{msg.metadata.buyer_budget?.toLocaleString('en-IN')}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Interactive Conversational Checkout Card */}
                   {msg.metadata?.pending_checkout && msg.metadata?.recommended_products && msg.metadata.recommended_products.length > 0 && (
@@ -608,14 +825,20 @@ export default function BuyerAIWorkspace() {
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between text-xs pt-2 border-t border-zinc-800/80">
-                            <span className="text-zinc-400 text-[11px] font-mono">Stock: <strong className="text-zinc-200">{product.stock}</strong></span>
+                          <div className="flex items-center justify-between text-xs pt-2 border-t border-zinc-800/80 gap-2">
+                            <button
+                              onClick={() => handleAddToCart(product)}
+                              className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 py-1.5 text-[11px] font-semibold text-zinc-200 hover:border-[#e5c178] hover:text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <ShoppingBag className="h-3.5 w-3.5 text-[#e5c178]" />
+                              <span>+ Add to Cart</span>
+                            </button>
                             <button
                               onClick={() => handleInitiateRazorpay(product)}
-                              className="btn-ivory rounded-xl px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1 shadow-md"
+                              className="btn-ivory flex-1 rounded-xl py-1.5 text-[11px] font-bold inline-flex items-center justify-center gap-1 shadow-md cursor-pointer"
                             >
                               <CreditCard className="h-3.5 w-3.5" />
-                              <span>Buy via Razorpay</span>
+                              <span>Buy Now</span>
                             </button>
                           </div>
                         </div>
@@ -716,57 +939,267 @@ export default function BuyerAIWorkspace() {
         </div>
       </main>
 
-      {/* Cart Drawer */}
+      {/* Rich Slide-Over Cart Drawer */}
       {showCartDrawer && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-[#050507] border-l border-zinc-800 p-6 flex flex-col justify-between space-y-6">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <ShoppingBag className="h-5 w-5 text-[#e5c178]" />
-                  <span>Buyer Shopping Cart</span>
-                </h3>
-                <button onClick={() => setShowCartDrawer(false)} className="text-zinc-400 hover:text-white">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-[#050507] border-l border-zinc-800 p-6 flex flex-col justify-between space-y-6 h-full shadow-2xl">
+            {/* Drawer Header */}
+            <div className="space-y-6 overflow-hidden flex flex-col flex-1">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-4 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-[#e5c178]/10 text-[#e5c178] border border-[#e5c178]/20">
+                    <ShoppingBag className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white tracking-tight">Buyer Shopping Cart</h3>
+                    <p className="text-[11px] font-mono text-zinc-400">{totalCartCount} {totalCartCount === 1 ? 'item' : 'items'} selected</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCartDrawer(false)}
+                  className="p-2 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 transition-all"
+                >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              {cartItems.map((item) => (
-                <div key={item.product.id} className="rounded-xl border border-zinc-800 bg-[#09090d] p-4 space-y-3">
-                  <div className="flex gap-3">
-                    <img src={item.product.image_url} alt={item.product.name} className="h-14 w-14 rounded-lg object-cover" />
-                    <div>
-                      <h4 className="text-xs font-bold text-white">{item.product.name}</h4>
-                      <p className="text-xs font-extrabold text-[#e5c178] pt-1">₹{item.product.price.toLocaleString('en-IN')}</p>
-                    </div>
+              {/* Drawer Cart Items / Empty View */}
+              {cartItems.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4 py-12">
+                  <div className="h-16 w-16 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500">
+                    <ShoppingBag className="h-8 w-8 text-zinc-600" />
                   </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-bold text-white">Your cart is empty</div>
+                    <p className="text-xs text-zinc-400 max-w-xs">
+                      Ask the AI Shopping Assistant for recommendations or search for products to add them to your cart.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowCartDrawer(false);
+                      handleSendMessage('Show me top wireless headphones under ₹6,000');
+                    }}
+                    className="btn-ivory rounded-xl px-4 py-2 text-xs font-bold shadow-md cursor-pointer"
+                  >
+                    🔍 Find Recommended Products
+                  </button>
                 </div>
-              ))}
+              ) : (
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+                  {cartItems.map((item) => (
+                    <div key={item.product.id} className="rounded-2xl border border-zinc-800 bg-[#09090d] p-4 space-y-3 shadow-md hover:border-zinc-700 transition-all">
+                      <div className="flex gap-3">
+                        <img
+                          src={item.product.image_url}
+                          alt={item.product.name}
+                          className="h-16 w-16 rounded-xl object-cover border border-zinc-800 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-xs font-bold text-white line-clamp-2 leading-snug">{item.product.name}</h4>
+                            <button
+                              onClick={() => handleRemoveFromCart(item.product.id)}
+                              className="text-zinc-500 hover:text-red-400 transition-colors p-1"
+                              title="Remove item"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <div className="text-xs font-extrabold text-[#e5c178]">
+                            ₹{item.product.price.toLocaleString('en-IN')}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quantity Controls & Line Subtotal */}
+                      <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80 text-xs">
+                        <div className="flex items-center gap-2 bg-zinc-950 px-2 py-1 rounded-xl border border-zinc-800">
+                          <button
+                            onClick={() => handleUpdateCartQuantity(item.product.id, -1)}
+                            className="h-5 w-5 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 font-bold transition-all"
+                          >
+                            -
+                          </button>
+                          <span className="font-mono text-xs font-bold text-white px-2">{item.quantity}</span>
+                          <button
+                            onClick={() => handleUpdateCartQuantity(item.product.id, 1)}
+                            className="h-5 w-5 rounded flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 font-bold transition-all"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[10px] text-zinc-500 font-mono">Subtotal: </span>
+                          <span className="font-bold text-white font-mono">
+                            ₹{(item.product.price * item.quantity).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="border-t border-zinc-800 pt-4 space-y-4">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-400 font-mono">Total Payable:</span>
-                <span className="text-lg font-extrabold text-[#e5c178]">
-                  ₹{cartItems.reduce((acc, curr) => acc + curr.product.price * curr.quantity, 0).toLocaleString('en-IN')}
-                </span>
+            {/* Cart Footer Summary & Checkout */}
+            {cartItems.length > 0 && (
+              <div className="border-t border-zinc-800 pt-4 space-y-4 shrink-0 bg-[#050507]">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 flex items-center gap-2.5 text-xs text-emerald-400">
+                  <Zap className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <span className="text-[11px] font-medium leading-snug">
+                    Merchant Governance Gate Approved: Max 15% discount limit & auto-checkout value ceiling checked.
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Cart Total ({totalCartCount} items)</span>
+                    <span className="font-mono text-white">₹{totalCartPrice.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Delivery & Tax</span>
+                    <span className="font-mono text-emerald-400 font-bold">FREE (Demo)</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm pt-2 border-t border-zinc-800">
+                    <span className="font-bold text-white">Total Amount:</span>
+                    <span className="text-xl font-extrabold text-[#e5c178] font-mono">
+                      ₹{totalCartPrice.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowCartDrawer(false);
+                    if (cartItems.length > 0) {
+                      handleInitiateRazorpay(cartItems[0].product);
+                    }
+                  }}
+                  className="btn-ivory w-full flex items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold shadow-xl active:scale-95 transition-all cursor-pointer"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  <span>⚡ Checkout via Razorpay API (₹{totalCartPrice.toLocaleString('en-IN')})</span>
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setShowCartDrawer(false);
-                  if (cartItems.length > 0) handleInitiateRazorpay(cartItems[0].product);
-                }}
-                className="btn-ivory w-full flex items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold shadow-lg"
-              >
-                <CreditCard className="h-4 w-4" />
-                <span>Checkout via Razorpay API</span>
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}
         </div>
       </div>
+
+      {/* Buyer Profile & Agent Governance Controls Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-[#09090d] p-6 space-y-6 shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-[#e5c178]/10 text-[#e5c178] border border-[#e5c178]/30 flex items-center justify-center text-lg font-bold">
+                  👤
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white tracking-tight">Buyer Profile & Agent Controls</h3>
+                  <p className="text-xs text-zinc-400">Set budget ceilings & purchase governance boundaries for your AI assistant.</p>
+                </div>
+              </div>
+              <button onClick={() => setShowProfileModal(false)} className="p-1 text-zinc-400 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Form Body */}
+            <div className="space-y-5 text-xs">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-200 flex items-center justify-between">
+                  <span>AI Agent Auto-Purchase Budget Ceiling</span>
+                  <span className="text-[#e5c178] font-mono font-bold">Current: ₹{buyerBudget.toLocaleString('en-IN')}</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-2.5 font-mono text-zinc-500 font-bold text-sm">₹</span>
+                  <input
+                    type="number"
+                    value={buyerBudget}
+                    onChange={(e) => setBuyerBudget(Number(e.target.value))}
+                    className="w-full rounded-xl border border-zinc-800 bg-zinc-950 pl-8 pr-4 py-2.5 text-sm text-white font-mono focus:border-[#e5c178] focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[10px] text-zinc-500 font-mono">Quick Presets:</span>
+                  {[3000, 5000, 10000, 15000].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setBuyerBudget(preset)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all ${
+                        buyerBudget === preset
+                          ? 'bg-[#e5c178] text-zinc-950'
+                          : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+                      }`}
+                    >
+                      ₹{preset.toLocaleString('en-IN')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-zinc-800/80">
+                <label className="text-xs font-bold text-zinc-200 flex items-center justify-between">
+                  <span>Require Order Confirmation Ceiling</span>
+                  <span className="text-emerald-400 font-mono font-bold">₹{autoConfirmThreshold.toLocaleString('en-IN')}</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-2.5 font-mono text-zinc-500 font-bold text-sm">₹</span>
+                  <input
+                    type="number"
+                    value={autoConfirmThreshold}
+                    onChange={(e) => setAutoConfirmThreshold(Number(e.target.value))}
+                    className="w-full rounded-xl border border-zinc-800 bg-zinc-950 pl-8 pr-4 py-2.5 text-sm text-white font-mono focus:border-[#e5c178] focus:outline-none"
+                  />
+                </div>
+                <p className="text-[10px] text-zinc-500">
+                  Orders above this value require explicit buyer confirmation before launching the Razorpay checkout.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 flex items-center justify-between text-[11px]">
+                <div className="flex items-center gap-2">
+                  <Sliders className="h-4 w-4 text-[#e5c178]" />
+                  <span className="text-zinc-300 font-medium">Buyer Identity</span>
+                </div>
+                <span className="font-mono text-white font-bold">Rajesh Kumar (Buyer Demo)</span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-zinc-800 pt-4 flex items-center justify-between">
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 font-bold">
+                POLICY ACTIVE
+              </span>
+              <button
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('buyer_agent_budget', buyerBudget.toString());
+                    localStorage.setItem('buyer_auto_confirm', autoConfirmThreshold.toString());
+                  }
+                  setShowProfileModal(false);
+                  setCustomAlert({
+                    isOpen: true,
+                    title: 'Agent Controls Saved',
+                    message: `AI Agent purchase budget ceiling updated to ₹${buyerBudget.toLocaleString('en-IN')}.`,
+                    type: 'success',
+                  });
+                }}
+                className="btn-ivory rounded-xl px-5 py-2.5 text-xs font-bold shadow-lg cursor-pointer active:scale-95 transition-all"
+              >
+                Save Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <CustomAlertModal alert={customAlert} onClose={() => setCustomAlert(null)} />
     </AuthGuard>
