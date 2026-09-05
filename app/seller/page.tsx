@@ -336,6 +336,41 @@ export default function SellerAdminDashboard() {
   const totalProducts = products.length;
   const aiReadyProducts = products.filter((p) => p.is_ai_ready).length;
 
+  // Dynamic GMV Growth Calculation (comparing recent orders)
+  const getDynamicGmvGrowth = () => {
+    if (orders.length === 0) return { pctStr: '0.0%', isPositive: true };
+
+    const now = Date.now();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+
+    let recentRev = 0;
+    let prevRev = 0;
+
+    orders.forEach((o) => {
+      if (o.created_at) {
+        const orderTime = new Date(o.created_at).getTime();
+        const age = now - orderTime;
+        if (age <= sevenDaysMs) {
+          recentRev += Number(o.total_amount || 0);
+        } else if (age <= 2 * sevenDaysMs) {
+          prevRev += Number(o.total_amount || 0);
+        }
+      }
+    });
+
+    if (prevRev === 0) {
+      if (recentRev > 0) return { pctStr: '+100.0%', isPositive: true };
+      return { pctStr: '0.0%', isPositive: true };
+    }
+
+    const diff = recentRev - prevRev;
+    const pct = (diff / prevRev) * 100;
+    const isPositive = pct >= 0;
+    const pctStr = `${isPositive ? '+' : ''}${pct.toFixed(1)}%`;
+
+    return { pctStr, isPositive };
+  };
+
   // Dynamic 7-Day Revenue Velocity Chart Math
   const getDynamic7DayChartData = () => {
     const days: { label: string; dateStr: string; totalRevenue: number }[] = [];
@@ -638,12 +673,17 @@ export default function SellerAdminDashboard() {
                         </div>
                       </div>
                       <div className="text-3xl font-extrabold text-white tracking-tight">₹{stats.totalRevenue.toLocaleString('en-IN')}</div>
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-[#e5c178] font-semibold flex items-center gap-1">
-                          <ArrowUpRight className="h-3 w-3" /> +24.8% growth
-                        </span>
-                        <span className="text-zinc-500 font-mono">Razorpay Verified</span>
-                      </div>
+                      {(() => {
+                        const growth = getDynamicGmvGrowth();
+                        return (
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className={`font-semibold flex items-center gap-1 ${growth.isPositive ? 'text-[#e5c178]' : 'text-rose-400'}`}>
+                              <ArrowUpRight className={`h-3 w-3 ${growth.isPositive ? '' : 'rotate-90'}`} /> {growth.pctStr} growth
+                            </span>
+                            <span className="text-zinc-500 font-mono">Razorpay Verified</span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div className="rounded-2xl border border-zinc-800/80 bg-[#09090d] p-5 space-y-2 relative overflow-hidden group hover:border-[#e5c178]/40 transition-all shadow-lg">
@@ -656,7 +696,9 @@ export default function SellerAdminDashboard() {
                       <div className="text-3xl font-extrabold text-white tracking-tight">{stats.activeOrdersCount}</div>
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-emerald-400 font-semibold">{stats.paidOrdersCount} Paid Orders</span>
-                        <span className="text-zinc-500 font-mono">100% Verified</span>
+                        <span className="text-zinc-500 font-mono">
+                          {stats.activeOrdersCount > 0 ? Math.round((stats.paidOrdersCount / stats.activeOrdersCount) * 100) : 100}% Verified
+                        </span>
                       </div>
                     </div>
 
